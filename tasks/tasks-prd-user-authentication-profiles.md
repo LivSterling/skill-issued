@@ -1,0 +1,165 @@
+## Relevant Files
+
+- `lib/supabase/client.ts` - Supabase client configuration and initialization ✅
+- `lib/supabase/server.ts` - Server-side Supabase client for API routes ✅
+- `lib/supabase/middleware.ts` - Middleware for authentication state management ✅
+- `lib/auth/auth-utils.ts` - Authentication utility functions and helpers
+- `lib/auth/auth-utils.test.ts` - Unit tests for authentication utilities
+- `lib/validations/auth-schemas.ts` - Zod validation schemas for authentication forms
+- `lib/validations/profile-schemas.ts` - Zod validation schemas for profile data
+- `lib/validations/schemas.test.ts` - Unit tests for validation schemas
+- `lib/database/types.ts` - TypeScript types for database entities
+- `lib/database/queries.ts` - Database query functions for user operations
+- `lib/database/queries.test.ts` - Unit tests for database queries
+- `hooks/use-auth.ts` - Custom hook for authentication state management
+- `hooks/use-profile.ts` - Custom hook for profile data management
+- `hooks/use-auth.test.ts` - Unit tests for use-auth hook
+- `hooks/use-profile.test.ts` - Unit tests for use-profile hook
+- `contexts/auth-context.tsx` - React context for global authentication state
+- `contexts/profile-context.tsx` - React context for profile data management
+- `components/auth/auth-provider.tsx` - Authentication provider component
+- `components/auth/protected-route.tsx` - Component for protecting routes
+- `components/auth/protected-route.test.tsx` - Unit tests for protected route
+- `components/profile/profile-editor.tsx` - Profile editing form component
+- `components/profile/profile-viewer.tsx` - Public profile viewing component
+- `components/profile/avatar-upload.tsx` - Avatar upload component with validation
+- `components/profile/social-actions.tsx` - Friend/follow action buttons
+- `components/profile/profile-editor.test.tsx` - Unit tests for profile editor
+- `components/profile/avatar-upload.test.tsx` - Unit tests for avatar upload
+- `app/api/auth/register/route.ts` - API route for user registration
+- `app/api/auth/login/route.ts` - API route for user login
+- `app/api/auth/logout/route.ts` - API route for user logout
+- `app/api/auth/reset-password/route.ts` - API route for password reset
+- `app/api/profile/route.ts` - API route for profile CRUD operations
+- `app/api/profile/avatar/route.ts` - API route for avatar upload
+- `app/api/social/friends/route.ts` - API route for friend management
+- `app/api/social/follows/route.ts` - API route for follow/unfollow actions
+- `app/api/auth/register/route.test.ts` - Unit tests for registration API
+- `app/api/profile/route.test.ts` - Unit tests for profile API
+- `app/profile/edit/page.tsx` - Profile editing page
+- `app/profile/[username]/page.tsx` - Public profile viewing page
+- `app/profile/[username]/page.test.tsx` - Unit tests for public profile page
+- `middleware.ts` - Next.js middleware for authentication ✅
+- `supabase/migrations/001_create_profiles_table.sql` - Database migration for profiles ✅
+- `supabase/migrations/002_create_social_tables.sql` - Database migration for social features ✅
+- `supabase/seed.sql` - Database seed data for development ✅
+- `.env.local.example` - Environment variables template
+- `components/auth-dialog.tsx` - Enhanced existing auth dialog component
+- `components/navigation.tsx` - Enhanced navigation with user menu
+- `app/profile/page.tsx` - Enhanced existing profile page
+
+### Notes
+
+- Unit tests should typically be placed alongside the code files they are testing (e.g., `MyComponent.tsx` and `MyComponent.test.tsx` in the same directory).
+- Use `npx jest [optional/path/to/test/file]` to run tests. Running without a path executes all tests found by the Jest configuration.
+- Supabase migrations should be run using `npx supabase db push` for local development.
+- Environment variables should be configured in `.env.local` based on the `.env.local.example` template.
+- User already created a supabase project. project URL: https://gjazotuwmhjtbnczarcg.supabase.co API Key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdqYXpvdHV3bWhqdGJuY3phcmNnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc4MTQwODksImV4cCI6MjA3MzM5MDA4OX0.wt9mOOyw_qQ9VaF43uPCp53Aw3g47R1a_9YiZaTNMjU
+
+
+## Tasks
+
+- [x] 1.0 Setup Supabase Infrastructure and Configuration
+  - [x] 1.1 Install and configure Supabase client library (`@supabase/supabase-js`)
+  - [x] 1.2 Use existing Supabase project and API keys
+  - [x] 1.3 Set up environment variables configuration (`.env.local.example` and `.env.local`)
+  - [x] 1.4 Create Supabase client configuration files (`lib/supabase/client.ts`, `lib/supabase/server.ts`)
+  - [x] 1.5 Set up Supabase middleware for authentication state management (`lib/supabase/middleware.ts`)
+  - [x] 1.6 Configure Next.js middleware to handle authentication (`middleware.ts`)
+  - [x] 1.7 Create database migration files for profiles table (`supabase/migrations/001_create_profiles_table.sql`)
+  - [x] 1.8 Create database migration files for social features (`supabase/migrations/002_create_social_tables.sql`)
+  - [x] 1.9 Set up Row Level Security (RLS) policies for data protection
+  - [x] 1.10 Create database seed data for development (`supabase/seed.sql`)**One sub-task at a time:** Do **NOT** start the next sub‑task until you ask the user for permission and they say "yes" or "y"
+
+- [ ] 2.0 Implement Core Authentication System
+  - [ ] 2.1 Create authentication utility functions (`lib/auth/auth-utils.ts`)
+  - [ ] 2.2 Implement email/password registration functionality
+  - [ ] 2.3 Implement email/password login functionality
+  - [ ] 2.4 Implement Google OAuth authentication
+  - [ ] 2.5 Implement Discord OAuth authentication
+  - [ ] 2.6 Implement secure logout functionality
+  - [ ] 2.7 Implement password reset functionality
+  - [ ] 2.8 Create authentication context provider (`contexts/auth-context.tsx`)
+  - [ ] 2.9 Create custom authentication hook (`hooks/use-auth.ts`)
+  - [ ] 2.10 Implement session management and token refresh
+  - [ ] 2.11 Add authentication state persistence across page refreshes
+
+- [ ] 3.0 Create User Profile Management System
+  - [ ] 3.1 Create TypeScript types for user profiles (`lib/database/types.ts`)
+  - [ ] 3.2 Create profile validation schemas (`lib/validations/profile-schemas.ts`)
+  - [ ] 3.3 Implement profile creation on user registration
+  - [ ] 3.4 Create profile editing form component (`components/profile/profile-editor.tsx`)
+  - [ ] 3.5 Implement profile picture upload with validation (`components/profile/avatar-upload.tsx`)
+  - [ ] 3.6 Create profile viewing component (`components/profile/profile-viewer.tsx`)
+  - [ ] 3.7 Implement gaming preferences management
+  - [ ] 3.8 Implement bio and privacy settings management
+  - [ ] 3.9 Create profile context provider (`contexts/profile-context.tsx`)
+  - [ ] 3.10 Create custom profile management hook (`hooks/use-profile.ts`)
+  - [ ] 3.11 Implement profile data caching and optimization
+  - [ ] 3.12 Create profile editing page (`app/profile/edit/page.tsx`)
+  - [ ] 3.13 Create public profile viewing page (`app/profile/[username]/page.tsx`)
+
+- [ ] 4.0 Build Social Features (Friends & Follows)
+  - [ ] 4.1 Create social features validation schemas
+  - [ ] 4.2 Implement friend request system (send, accept, decline)
+  - [ ] 4.3 Implement follow/unfollow functionality
+  - [ ] 4.4 Create social actions component (`components/profile/social-actions.tsx`)
+  - [ ] 4.5 Implement friends list management
+  - [ ] 4.6 Implement followers/following lists
+  - [ ] 4.7 Create social activity feed display
+  - [ ] 4.8 Implement privacy controls for social features
+  - [ ] 4.9 Add social features to profile pages
+  - [ ] 4.10 Implement social data caching and real-time updates
+
+- [ ] 5.0 Integrate Authentication with Existing UI Components
+  - [ ] 5.1 Enhance existing auth dialog with real authentication (`components/auth-dialog.tsx`)
+  - [ ] 5.2 Add user menu to navigation component (`components/navigation.tsx`)
+  - [ ] 5.3 Implement protected route component (`components/auth/protected-route.tsx`)
+  - [ ] 5.4 Add authentication provider to app layout (`app/layout.tsx`)
+  - [ ] 5.5 Update profile page to use real user data (`app/profile/page.tsx`)
+  - [ ] 5.6 Add user-specific content to main page (`app/page.tsx`)
+  - [ ] 5.7 Integrate user data with games pages (`app/games/`)
+  - [ ] 5.8 Add user context to search functionality (`app/search/`)
+  - [ ] 5.9 Update activity page with user-specific data (`app/activity/`)
+  - [ ] 5.10 Implement authentication state indicators throughout UI
+
+- [ ] 6.0 Implement Data Validation and Security
+  - [ ] 6.1 Create comprehensive validation schemas (`lib/validations/auth-schemas.ts`)
+  - [ ] 6.2 Implement client-side form validation with real-time feedback
+  - [ ] 6.3 Implement server-side validation for all API endpoints
+  - [ ] 6.4 Add input sanitization and XSS protection
+  - [ ] 6.5 Implement file upload security for profile pictures
+  - [ ] 6.6 Add rate limiting for authentication endpoints
+  - [ ] 6.7 Implement CORS configuration for API access
+  - [ ] 6.8 Add CSRF protection for forms
+  - [ ] 6.9 Implement secure password requirements and validation
+  - [ ] 6.10 Add username uniqueness validation and conflict handling
+
+- [ ] 7.0 Create API Routes and Database Operations
+  - [ ] 7.1 Create user registration API route (`app/api/auth/register/route.ts`)
+  - [ ] 7.2 Create user login API route (`app/api/auth/login/route.ts`)
+  - [ ] 7.3 Create user logout API route (`app/api/auth/logout/route.ts`)
+  - [ ] 7.4 Create password reset API route (`app/api/auth/reset-password/route.ts`)
+  - [ ] 7.5 Create profile CRUD API routes (`app/api/profile/route.ts`)
+  - [ ] 7.6 Create avatar upload API route (`app/api/profile/avatar/route.ts`)
+  - [ ] 7.7 Create friends management API routes (`app/api/social/friends/route.ts`)
+  - [ ] 7.8 Create follow/unfollow API routes (`app/api/social/follows/route.ts`)
+  - [ ] 7.9 Create database query functions (`lib/database/queries.ts`)
+  - [ ] 7.10 Implement database connection pooling and optimization
+  - [ ] 7.11 Add API error handling and logging
+  - [ ] 7.12 Implement API response caching where appropriate
+
+- [ ] 8.0 Add Testing and Error Handling
+  - [ ] 8.1 Set up Jest testing framework and configuration
+  - [ ] 8.2 Create unit tests for authentication utilities (`lib/auth/auth-utils.test.ts`)
+  - [ ] 8.3 Create unit tests for validation schemas (`lib/validations/schemas.test.ts`)
+  - [ ] 8.4 Create unit tests for database queries (`lib/database/queries.test.ts`)
+  - [ ] 8.5 Create unit tests for custom hooks (`hooks/use-auth.test.ts`, `hooks/use-profile.test.ts`)
+  - [ ] 8.6 Create unit tests for React components (`components/profile/profile-editor.test.tsx`)
+  - [ ] 8.7 Create unit tests for API routes (`app/api/auth/register/route.test.ts`)
+  - [ ] 8.8 Create integration tests for authentication flow
+  - [ ] 8.9 Create integration tests for profile management
+  - [ ] 8.10 Implement comprehensive error handling throughout the application
+  - [ ] 8.11 Add error boundaries for React components
+  - [ ] 8.12 Create user-friendly error messages and loading states
+  - [ ] 8.13 Add logging and monitoring for production debugging
