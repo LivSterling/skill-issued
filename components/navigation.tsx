@@ -5,15 +5,49 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, Menu, X, Gamepad2, List, Activity, User } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Search, Menu, X, Gamepad2, List, Activity, User, LogOut, Settings } from "lucide-react"
 import { AuthDialog } from "@/components/auth-dialog"
+import { useAuth } from "@/hooks/use-auth"
 
 export function Navigation() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isAuthDialogOpen, setIsAuthDialogOpen] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
   const pathname = usePathname()
+  
+  // Use enhanced auth hook
+  const { 
+    isAuthenticated, 
+    userProfile, 
+    getDisplayName, 
+    getInitials,
+    avatarUrl,
+    userEmail,
+    signOut: authSignOut 
+  } = useAuth()
 
   const isActive = (path: string) => pathname === path
+
+  // Handle logout
+  const handleLogout = async () => {
+    setIsLoggingOut(true)
+    try {
+      const { success, error } = await authSignOut()
+      if (!success && error) {
+        console.error('Logout error:', error)
+        // You might want to show a toast notification here
+      } else {
+        // Redirect to home page
+        window.location.href = '/'
+      }
+    } catch (err) {
+      console.error('Unexpected logout error:', err)
+    } finally {
+      setIsLoggingOut(false)
+    }
+  }
 
   return (
     <>
@@ -62,16 +96,66 @@ export function Navigation() {
               onClick={() => (window.location.href = "/search")}
             />
           </div>
-          <Button variant="outline" size="sm" onClick={() => setIsAuthDialogOpen(true)}>
-            Sign In
-          </Button>
-          <Button
-            size="sm"
-            className="bg-primary text-primary-foreground hover:bg-primary/90"
-            onClick={() => setIsAuthDialogOpen(true)}
-          >
-            Create Account
-          </Button>
+          
+          {isAuthenticated ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={avatarUrl || ""} alt={getDisplayName()} />
+                    <AvatarFallback className="bg-primary text-primary-foreground">
+                      {getInitials()}
+                    </AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56" align="end" forceMount>
+                <div className="flex items-center justify-start gap-2 p-2">
+                  <div className="flex flex-col space-y-1 leading-none">
+                    <p className="font-medium">{getDisplayName()}</p>
+                    <p className="w-[200px] truncate text-sm text-muted-foreground">
+                      {userEmail}
+                    </p>
+                  </div>
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/profile" className="cursor-pointer">
+                    <User className="mr-2 h-4 w-4" />
+                    <span>Profile</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/settings" className="cursor-pointer">
+                    <Settings className="mr-2 h-4 w-4" />
+                    <span>Settings</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem 
+                  className="cursor-pointer text-red-600 focus:text-red-600" 
+                  onClick={handleLogout}
+                  disabled={isLoggingOut}
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>{isLoggingOut ? "Signing out..." : "Sign out"}</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <>
+              <Button variant="outline" size="sm" onClick={() => setIsAuthDialogOpen(true)}>
+                Sign In
+              </Button>
+              <Button
+                size="sm"
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
+                onClick={() => setIsAuthDialogOpen(true)}
+              >
+                Create Account
+              </Button>
+            </>
+          )}
         </div>
       </nav>
 
@@ -98,18 +182,42 @@ export function Navigation() {
                 onClick={() => (window.location.href = "/search")}
               />
             </div>
-            <div className="flex flex-col gap-2">
-              <Button variant="outline" size="sm" onClick={() => setIsAuthDialogOpen(true)}>
-                Sign In
-              </Button>
-              <Button
-                size="sm"
-                className="bg-primary text-primary-foreground hover:bg-primary/90"
-                onClick={() => setIsAuthDialogOpen(true)}
-              >
-                Create Account
-              </Button>
-            </div>
+            {isAuthenticated ? (
+              <div className="flex items-center gap-3 p-3 bg-card rounded-lg border border-border">
+                <Avatar className="h-10 w-10">
+                  <AvatarImage src={avatarUrl || ""} alt={getDisplayName()} />
+                  <AvatarFallback className="bg-primary text-primary-foreground">
+                    {getInitials()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1">
+                  <p className="font-medium text-sm">{getDisplayName()}</p>
+                  <p className="text-xs text-muted-foreground truncate">{userEmail}</p>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={handleLogout}
+                  disabled={isLoggingOut}
+                  className="text-red-600 hover:text-red-600 hover:bg-red-50"
+                >
+                  <LogOut className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <Button variant="outline" size="sm" onClick={() => setIsAuthDialogOpen(true)}>
+                  Sign In
+                </Button>
+                <Button
+                  size="sm"
+                  className="bg-primary text-primary-foreground hover:bg-primary/90"
+                  onClick={() => setIsAuthDialogOpen(true)}
+                >
+                  Create Account
+                </Button>
+              </div>
+            )}
           </div>
         )}
 
