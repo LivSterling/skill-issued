@@ -364,3 +364,19 @@ export const validateUpdateProfile = (data: unknown) => {
     throw error
   }
 }
+
+export const validateGamingPreferences = (data: unknown) => {
+  try {
+    const result = gamingPreferencesSchema.parse(data)
+    return { success: true, data: result, errors: [] }
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return { 
+        success: false, 
+        data: null, 
+        errors: formatValidationErrors(error) 
+      }
+    }
+    throw error
+  }
+}

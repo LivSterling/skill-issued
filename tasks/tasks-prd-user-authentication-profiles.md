@@ -118,7 +118,7 @@
   - [x] 3.12 Create profile editing page (`app/profile/edit/page.tsx`)
   - [x] 3.13 Create public profile viewing page (`app/profile/[username]/page.tsx`)
 
-- [x] 4.0 Build Social Features (Friends & Follows)
+- [x] 4.0 Build Social Features (Friends & Follows) ✅ **COMMITTED**
   - [x] 4.1 Create social features validation schemas
   - [x] 4.2 Implement friend request system (send, accept, decline)
   - [x] 4.3 Implement follow/unfollow functionality
