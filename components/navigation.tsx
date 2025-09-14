@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Search, Menu, X, Gamepad2, List, Activity, User, LogOut, Settings } from "lucide-react"
+import { Search, Menu, X, Gamepad2, List, Activity, User, Users, LogOut, Settings, Shield } from "lucide-react"
 import { AuthDialog } from "@/components/auth-dialog"
 import { useAuth } from "@/hooks/use-auth"
 
@@ -84,6 +84,14 @@ export function Navigation() {
             >
               Activity
             </Link>
+            {isAuthenticated && (
+              <Link
+                href="/friends"
+                className={`transition-colors ${isActive("/friends") ? "text-primary" : "text-foreground hover:text-primary"}`}
+              >
+                Friends
+              </Link>
+            )}
           </div>
         </div>
 
@@ -122,7 +130,19 @@ export function Navigation() {
                 <DropdownMenuItem asChild>
                   <Link href="/profile" className="cursor-pointer">
                     <User className="mr-2 h-4 w-4" />
-                    <span>Profile</span>
+                    <span>View Profile</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/profile/edit" className="cursor-pointer">
+                    <Settings className="mr-2 h-4 w-4" />
+                    <span>Edit Profile</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/privacy" className="cursor-pointer">
+                    <Shield className="mr-2 h-4 w-4" />
+                    <span>Privacy Settings</span>
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
@@ -242,15 +262,27 @@ export function Navigation() {
               <Search className="w-5 h-5" />
               <span className="text-xs">Search</span>
             </Link>
-            <Link
-              href="/lists"
-              className={`flex flex-col items-center gap-1 p-2 transition-colors ${
-                isActive("/lists") ? "text-primary" : "text-muted-foreground hover:text-primary"
-              }`}
-            >
-              <List className="w-5 h-5" />
-              <span className="text-xs">Lists</span>
-            </Link>
+            {isAuthenticated ? (
+              <Link
+                href="/friends"
+                className={`flex flex-col items-center gap-1 p-2 transition-colors ${
+                  isActive("/friends") ? "text-primary" : "text-muted-foreground hover:text-primary"
+                }`}
+              >
+                <Users className="w-5 h-5" />
+                <span className="text-xs">Friends</span>
+              </Link>
+            ) : (
+              <Link
+                href="/lists"
+                className={`flex flex-col items-center gap-1 p-2 transition-colors ${
+                  isActive("/lists") ? "text-primary" : "text-muted-foreground hover:text-primary"
+                }`}
+              >
+                <List className="w-5 h-5" />
+                <span className="text-xs">Lists</span>
+              </Link>
+            )}
             <Link
               href="/activity"
               className={`flex flex-col items-center gap-1 p-2 transition-colors ${

@@ -1,4 +1,6 @@
 import { supabase } from '@/lib/supabase/client'
+import { createProfile, checkUsernameAvailability as checkUsernameInDB } from '@/lib/database/queries'
+import { validateCreateProfile } from '@/lib/validations/profile-schemas'
 import type { AuthError, User } from '@supabase/supabase-js'
 
 export interface AuthResult {
@@ -30,7 +32,48 @@ export async function signUpWithEmail({
   displayName 
 }: SignUpData): Promise<AuthResult> {
   try {
-    const { data, error } = await supabase.auth.signUp({
+    // First, validate the profile data
+    const profileData = {
+      username,
+      display_name: displayName || username,
+      privacy_level: 'public' as const
+    }
+
+    const profileValidation = validateCreateProfile(profileData)
+    if (!profileValidation.success) {
+      return { 
+        user: null, 
+        error: { 
+          message: `Profile validation failed: ${profileValidation.errors.map(e => e.message).join(', ')}`,
+          name: 'ValidationError'
+        } as AuthError 
+      }
+    }
+
+    // Check if username is available
+    const { data: availabilityData, error: availabilityError } = await checkUsernameInDB(username)
+    if (availabilityError) {
+      return { 
+        user: null, 
+        error: { 
+          message: 'Unable to check username availability',
+          name: 'DatabaseError'
+        } as AuthError 
+      }
+    }
+
+    if (!availabilityData?.available) {
+      return { 
+        user: null, 
+        error: { 
+          message: 'Username is already taken',
+          name: 'UsernameUnavailable'
+        } as AuthError 
+      }
+    }
+
+    // Create the authentication user
+    const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -41,11 +84,29 @@ export async function signUpWithEmail({
       }
     })
 
-    if (error) {
-      return { user: null, error }
+    if (authError) {
+      return { user: null, error: authError }
     }
 
-    return { user: data.user, error: null }
+    // If user was created successfully, create the profile
+    if (authData.user) {
+      const { data: profile, error: profileError } = await createProfile(
+        authData.user.id,
+        {
+          username,
+          display_name: displayName,
+          privacy_level: 'public'
+        }
+      )
+
+      if (profileError) {
+        console.error('Profile creation failed during registration:', profileError)
+        // Note: We don't return an error here because the user was created successfully
+        // The profile can be created later, but we should log this for monitoring
+      }
+    }
+
+    return { user: authData.user, error: null }
   } catch (err) {
     return { 
       user: null, 
@@ -212,7 +273,13 @@ export async function checkUsernameAvailability(username: string): Promise<{ ava
       .maybeSingle()
 
     if (error) {
-      return { available: false, error }
+      return { 
+        available: false, 
+        error: { 
+          message: error.message || 'Database error while checking username',
+          name: 'DatabaseError'
+        } as AuthError 
+      }
     }
 
     // If data is null, username is available
