@@ -57,26 +57,52 @@ export function Navigation() {
 
   const isActive = (path: string) => pathname === path
 
-  // Handle logout
+  // Handle logout - Enhanced with force logout capability
   const handleLogout = async () => {
     setIsLoggingOut(true)
     try {
+      // First try normal logout
       const { success, error } = await authSignOut()
+      
+      // Force clear all auth-related storage regardless of success
+      try {
+        localStorage.removeItem('supabase.auth.token')
+        localStorage.removeItem('sb-gjazotuwmhjtbnczarcg-auth-token') // Your specific Supabase project
+        sessionStorage.clear()
+        
+        // Clear any other auth-related keys
+        Object.keys(localStorage).forEach(key => {
+          if (key.includes('auth') || key.includes('supabase') || key.includes('sb-')) {
+            localStorage.removeItem(key)
+          }
+        })
+      } catch (storageError) {
+        console.warn('Storage clearing error:', storageError)
+      }
+      
       if (!success && error) {
         console.error('Logout error:', error)
-        toast.error('Failed to sign out. Please try again.')
+        toast.warning('Auth service error, but local session cleared. Refreshing page...')
       } else {
         toast.success('You have been signed out successfully.')
-        // Close mobile menu if open
-        setIsMobileMenuOpen(false)
-        // Redirect to home page after a short delay
-        setTimeout(() => {
-          window.location.href = '/'
-        }, 1000)
       }
+      
+      // Close mobile menu if open
+      setIsMobileMenuOpen(false)
+      
+      // Force page refresh to clear any cached auth state
+      setTimeout(() => {
+        window.location.reload()
+      }, 500)
+      
     } catch (err) {
       console.error('Unexpected logout error:', err)
-      toast.error('An unexpected error occurred while signing out.')
+      toast.error('Force clearing session and refreshing...')
+      
+      // Even if everything fails, force refresh
+      setTimeout(() => {
+        window.location.reload()
+      }, 1000)
     } finally {
       setIsLoggingOut(false)
     }
@@ -163,6 +189,23 @@ export function Navigation() {
               </Button>
             </div>
           )}
+          
+          {/* Emergency Auth Debug - Always visible */}
+          <div className="flex items-center gap-2">
+            <Badge variant={isAuthenticated ? "default" : "secondary"} className="text-xs">
+              {isLoading ? "Loading..." : isAuthenticated ? "Auth: ON" : "Auth: OFF"}
+            </Badge>
+            {/* Emergency logout - always available for debugging auth limbo */}
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={handleLogout}
+              className="text-xs text-red-600 hover:text-red-700 px-2"
+              title="Emergency logout (always available)"
+            >
+              Force Logout
+            </Button>
+          </div>
           
           {isLoading ? (
             <NavigationLoadingSkeleton />
@@ -307,6 +350,21 @@ export function Navigation() {
 
         {isMobileMenuOpen && (
           <div className="bg-background border-b border-border p-4 space-y-4">
+            {/* Emergency Auth Debug - Mobile */}
+            <div className="flex items-center justify-between p-2 bg-card rounded border">
+              <Badge variant={isAuthenticated ? "default" : "secondary"} className="text-xs">
+                {isLoading ? "Loading..." : isAuthenticated ? "Auth: ON" : "Auth: OFF"}
+              </Badge>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={handleLogout}
+                className="text-xs text-red-600 hover:text-red-700"
+              >
+                Force Logout
+              </Button>
+            </div>
+            
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
               <Input

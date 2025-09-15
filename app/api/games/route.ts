@@ -12,13 +12,48 @@ import {
   handleConditionalRequest,
   createCachedResponse 
 } from '@/lib/utils/api-cache'
+import { 
+  rawgRateLimit,
+  shouldRateLimit,
+  addRateLimitHeaders 
+} from '@/lib/middleware/rate-limit'
+import { 
+  createLoggingMiddleware,
+  apiLogger 
+} from '@/lib/utils/api-logger'
+import { 
+  apiResponse,
+  transformResponse,
+  createValidationErrorResponse,
+  createInternalErrorResponse,
+  createErrorResponse
+} from '@/lib/utils/api-response'
 import type { GameApiParams } from '@/lib/types/game-types'
 
 /**
  * GET /api/games - Fetch games from RAWG API with comprehensive validation and caching
  */
 export async function GET(request: NextRequest) {
+  // Initialize logging
+  const logging = createLoggingMiddleware()
+  const logContext = logging(request)
+  
   try {
+    // Apply rate limiting
+    if (shouldRateLimit(request)) {
+      const rateLimitResponse = await rawgRateLimit(request)
+      if (rateLimitResponse) {
+        apiLogger.logRateLimit(logContext.context, 'EXCEEDED', {
+          limit: 30,
+          remaining: 0,
+          resetTime: Date.now() + 60000,
+          key: 'games-api'
+        })
+        logContext.complete(rateLimitResponse, { rateLimitStatus: 'EXCEEDED' })
+        return rateLimitResponse
+      }
+    }
+
     const { searchParams } = new URL(request.url)
     
     // Extract and validate API parameters
@@ -97,38 +132,53 @@ export async function GET(request: NextRequest) {
     // Comprehensive parameter validation
     const validation = validateGameApiParams(rawParams)
     if (!validation.isValid) {
-      return NextResponse.json(
-        { 
-          error: 'Invalid request parameters',
-          details: validation.errors,
-          warnings: validation.warnings
-        },
-        { status: 400 }
-      )
+      apiLogger.logValidationError(logContext.context, validation.errors, rawParams)
+      const response = createValidationErrorResponse(validation.errors, {
+        warnings: validation.warnings,
+        requestId: logContext.context.requestId
+      })
+      logContext.complete(response, { errors: validation.errors })
+      return response
     }
     
     // Check for required API key
     const apiKey = process.env.RAWG_API_KEY
     if (!apiKey) {
       console.error('RAWG_API_KEY environment variable is not set')
-      return NextResponse.json(
-        { error: 'Service configuration error' },
-        { status: 503 }
-      )
+      const response = createErrorResponse('Service configuration error', {
+        code: 'SERVICE_UNAVAILABLE',
+        status: 503,
+        requestId: logContext.context.requestId
+      })
+      logContext.complete(response, { errors: ['Missing API key'] })
+      return response
     }
     
     // Initialize RAWG service and fetch data
     const rawg = new RAWGService(apiKey)
     let rawgData
     
+    const rawgStartTime = Date.now()
     try {
       rawgData = await rawg.getGames(rawParams)
+      const rawgDuration = Date.now() - rawgStartTime
+      apiLogger.logRAWGApiCall(logContext.context, '/games', rawgDuration, true)
     } catch (rawgError) {
-      console.error('RAWG API request failed:', rawgError)
-      return NextResponse.json(
-        { error: 'Failed to fetch games from RAWG API', details: 'External service unavailable' },
-        { status: 502 }
-      )
+      const rawgDuration = Date.now() - rawgStartTime
+      apiLogger.logRAWGApiCall(logContext.context, '/games', rawgDuration, false, rawgError)
+      
+      const response = createErrorResponse('Failed to fetch games from RAWG API', {
+        code: 'EXTERNAL_SERVICE_ERROR',
+        status: 502,
+        requestId: logContext.context.requestId,
+        meta: {
+          version: '1.0',
+          source: 'api',
+          debug: process.env.NODE_ENV === 'development' ? { rawgError } : undefined
+        }
+      })
+      logContext.complete(response, { rawgApiCalls: 1, errors: ['RAWG API failure'] })
+      return response
     }
     
     // Validate RAWG response
@@ -175,7 +225,7 @@ export async function GET(request: NextRequest) {
     const responseData = {
       ...rawgData,
       meta: {
-        ...rawgData.meta,
+        ...(rawgData as any).meta,
         cached_at: new Date().toISOString(),
         warnings: validation.warnings,
         cache_key: generateGameListCacheKey(rawParams)
@@ -198,6 +248,11 @@ export async function GET(request: NextRequest) {
     )
 
     if (conditionalResponse) {
+      apiLogger.logCacheOperation(logContext.context, 'HIT', generateGameListCacheKey(rawParams))
+      logContext.complete(conditionalResponse, { 
+        cacheStatus: 'HIT',
+        rawgApiCalls: 1
+      })
       return conditionalResponse
     }
 
@@ -209,28 +264,57 @@ export async function GET(request: NextRequest) {
       cacheType = 'TRENDING_GAMES'
     }
 
-    // Return cached response with proper headers
-    return createCachedResponse(responseData, {
-      cacheType,
-      etag,
-      lastModified,
-      headers: {
-        'X-Cache-Key': generateGameListCacheKey(rawParams),
-        'X-Total-Count': rawgData.count?.toString() || '0',
-        'X-Page': rawParams.page?.toString() || '1',
-        'X-Page-Size': rawParams.page_size?.toString() || '20'
+    // Transform response using our standardized format
+    apiLogger.logCacheOperation(logContext.context, 'SET', generateGameListCacheKey(rawParams))
+    
+    const response = transformResponse(rawgData, logContext.context, {
+      type: 'games-list',
+      meta: {
+        version: '1.0',
+        source: 'api',
+        cached: true,
+        cacheKey: generateGameListCacheKey(rawParams),
+        warnings: validation.warnings
       }
     })
+
+    // Add cache headers to the transformed response
+    response.headers.set('Cache-Control', apiCache.getGameCacheHeaders(cacheType)['Cache-Control'])
+    response.headers.set('ETag', etag)
+    response.headers.set('Last-Modified', lastModified.toUTCString())
+    response.headers.set('X-Cache-Key', generateGameListCacheKey(rawParams))
+    response.headers.set('X-Total-Count', (rawgData as any).count?.toString() || '0')
+    response.headers.set('X-Page', rawParams.page?.toString() || '1')
+    response.headers.set('X-Page-Size', rawParams.page_size?.toString() || '20')
+
+    logContext.complete(response, {
+      cacheStatus: 'MISS',
+      rawgApiCalls: 1,
+      warnings: validation.warnings
+    })
+    
+    return response
     
   } catch (error) {
-    console.error('Games API error:', error)
-    return NextResponse.json(
-      { 
-        error: 'Internal server error',
-        message: process.env.NODE_ENV === 'development' ? (error as Error)?.message : undefined
-      },
-      { status: 500 }
-    )
+    apiLogger.logError('Games API error', { 
+      ...logContext.context, 
+      errors: [(error as Error)?.message || 'Unknown error'],
+      metadata: { error }
+    })
+    
+    const response = createInternalErrorResponse('Internal server error', {
+      requestId: logContext.context.requestId,
+      debug: process.env.NODE_ENV === 'development' ? { 
+        error: (error as Error)?.message,
+        stack: (error as Error)?.stack
+      } : undefined
+    })
+    
+    logContext.complete(response, { 
+      errors: ['Internal server error']
+    })
+    
+    return response
   }
 }
 

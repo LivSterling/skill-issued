@@ -8,6 +8,20 @@ import {
   handleConditionalRequest,
   createCachedResponse 
 } from '@/lib/utils/api-cache'
+import { 
+  rawgRateLimit,
+  shouldRateLimit 
+} from '@/lib/middleware/rate-limit'
+import { 
+  createLoggingMiddleware,
+  apiLogger 
+} from '@/lib/utils/api-logger'
+import { 
+  transformResponse,
+  createErrorResponse,
+  createNotFoundResponse,
+  createInternalErrorResponse
+} from '@/lib/utils/api-response'
 
 /**
  * GET /api/games/[id] - Fetch individual game data with intelligent caching
@@ -16,7 +30,20 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  // Initialize logging
+  const logging = createLoggingMiddleware()
+  const logContext = logging(request)
+  
   try {
+    // Apply rate limiting
+    if (shouldRateLimit(request)) {
+      const rateLimitResponse = await rawgRateLimit(request)
+      if (rateLimitResponse) {
+        logContext.complete(rateLimitResponse, { rateLimitStatus: 'EXCEEDED' })
+        return rateLimitResponse
+      }
+    }
+
     const { id } = params
     
     // Validate game ID parameter
@@ -240,29 +267,33 @@ export async function GET(
       }
 
       // Successfully cached and returning fresh data
-      const responseData = {
-        ...(upsertedGame as any),
+      const response = transformResponse(upsertedGame, logContext.context, {
+        type: 'game',
         meta: {
+          version: '1.0',
           source: 'api',
-          fetched_at: (upsertedGame as any).updated_at,
           cached: true,
-          cache_key: generateGameCacheKey(gameId)
-        }
-      }
-
-      const lastModified = new Date((upsertedGame as any).updated_at)
-      const etag = apiCache.generateTimestampedETag(responseData, lastModified)
-
-      return createCachedResponse(responseData, {
-        cacheType: 'GAME_DETAIL',
-        etag,
-        lastModified,
-        headers: {
-          'X-Cache-Key': generateGameCacheKey(gameId),
-          'X-Cache-Status': 'MISS',
-          'X-Data-Source': 'RAWG-API'
+          cacheKey: generateGameCacheKey(gameId)
         }
       })
+
+      const lastModified = new Date((upsertedGame as any).updated_at)
+      const etag = apiCache.generateTimestampedETag(upsertedGame, lastModified)
+
+      // Add cache headers
+      response.headers.set('Cache-Control', apiCache.getGameCacheHeaders('GAME_DETAIL')['Cache-Control'])
+      response.headers.set('ETag', etag)
+      response.headers.set('Last-Modified', lastModified.toUTCString())
+      response.headers.set('X-Cache-Key', generateGameCacheKey(gameId))
+      response.headers.set('X-Cache-Status', 'MISS')
+      response.headers.set('X-Data-Source', 'RAWG-API')
+
+      logContext.complete(response, { 
+        cacheStatus: 'MISS',
+        rawgApiCalls: 1
+      })
+
+      return response
 
     } catch (dbError) {
       console.error('Database error during game upsert:', dbError)

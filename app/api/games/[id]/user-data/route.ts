@@ -6,6 +6,10 @@ import {
   handleConditionalRequest,
   createCachedResponse 
 } from '@/lib/utils/api-cache'
+import { 
+  createUserRateLimit,
+  shouldRateLimit 
+} from '@/lib/middleware/rate-limit'
 
 /**
  * GET /api/games/[id]/user-data - Fetch user-specific game data
@@ -238,6 +242,15 @@ export async function POST(
         { error: 'Authentication service unavailable' },
         { status: 503 }
       )
+    }
+
+    // Apply user-specific rate limiting for POST requests
+    if (shouldRateLimit(request)) {
+      const userRateLimit = createUserRateLimit(user.id)
+      const rateLimitResponse = await userRateLimit(request)
+      if (rateLimitResponse) {
+        return rateLimitResponse
+      }
     }
 
     // Extract and validate user game data using our validation system
