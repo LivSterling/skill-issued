@@ -420,6 +420,80 @@ export interface GameCacheConfig {
 }
 
 // ============================================================================
+// SEARCH INTERFACES
+// ============================================================================
+
+export interface SearchSuggestion {
+  query: string
+  popularity: number
+}
+
+export interface PopularSearch {
+  query: string
+  popularity: number
+}
+
+export interface UseGameSearchParams {
+  initialQuery?: string
+  initialFilters?: GameFilters
+  pageSize?: number
+  enableSuggestions?: boolean
+  enablePopularSearches?: boolean
+  autoSearch?: boolean
+  onSearchComplete?: (results: GameDisplayData[], totalResults: number) => void
+  onError?: (error: Error) => void
+}
+
+export interface SearchStats {
+  totalResults: number
+  currentPage: number
+  resultsCount: number
+  searchTime: number
+  lastQuery: string
+  hasMore: boolean
+}
+
+export interface UseGameSearchReturn {
+  // Search state
+  query: string
+  filters: GameFilters
+  results: GameDisplayData[]
+  suggestions: SearchSuggestion[]
+  popularSearches: PopularSearch[]
+  
+  // Loading states
+  isSearching: boolean
+  isLoadingSuggestions: boolean
+  isLoadingMore: boolean
+  
+  // Pagination
+  currentPage: number
+  totalResults: number
+  hasNextPage: boolean
+  canLoadMore: boolean
+  
+  // Error handling
+  error: string | null
+  
+  // Search metadata
+  searchStats: SearchStats
+  isValidQuery: boolean
+  hasResults: boolean
+  
+  // Actions
+  search: (query: string, filters?: GameFilters) => void
+  loadMore: () => void
+  retry: () => void
+  clearSearch: () => void
+  updateFilters: (filters: Partial<GameFilters>) => void
+  selectSuggestion: (suggestion: SearchSuggestion) => void
+  
+  // Direct setters for controlled usage
+  setQuery: (query: string) => void
+  setFilters: (filters: GameFilters) => void
+}
+
+// ============================================================================
 // EXPORT ALL TYPES
 // ============================================================================
 

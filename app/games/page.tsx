@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useAuth } from "@/hooks/use-auth"
 import { useGames } from "@/hooks/use-games"
 import { GameGrid, GameList } from "@/components/games"
+import { GameSearch } from "@/components/games/game-search"
 import { 
   Star, 
   Clock, 
@@ -28,11 +29,13 @@ import {
   Gamepad2,
   TrendingUp,
   AlertCircle,
-  Loader2
+  Loader2,
+  Search
 } from "lucide-react"
 import Link from "next/link"
 
 export default function GamesPage() {
+  const [activeTab, setActiveTab] = useState<"browse" | "search">("browse")
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
   const [sortBy, setSortBy] = useState("popular")
   const [filterGenre, setFilterGenre] = useState("all")
@@ -190,6 +193,48 @@ export default function GamesPage() {
           )}
         </div>
 
+        {/* Tab Navigation */}
+        <div className="mb-8">
+          <div className="flex space-x-1 bg-muted p-1 rounded-lg w-fit">
+            <button
+              onClick={() => setActiveTab("browse")}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                activeTab === "browse" 
+                  ? "bg-background text-foreground shadow-sm" 
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Filter className="h-4 w-4 inline mr-2" />
+              Browse
+            </button>
+            <button
+              onClick={() => setActiveTab("search")}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                activeTab === "search" 
+                  ? "bg-background text-foreground shadow-sm" 
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Search className="h-4 w-4 inline mr-2" />
+              Search
+            </button>
+          </div>
+        </div>
+
+        {/* Tab Content */}
+        {activeTab === "search" ? (
+          <GameSearch
+            className="w-full"
+            showFilters={true}
+            showSuggestions={true}
+            showPopularSearches={true}
+            enableInfiniteScroll={true}
+            onSearchStart={(query) => console.log('Search started:', query)}
+            onSearchComplete={(results, total) => console.log('Search completed:', results.length, 'of', total)}
+            onError={(error) => console.error('Search error:', error)}
+          />
+        ) : (
+          <>
         {/* Personalized Dashboard for Authenticated Users */}
         {isAuthenticated && (
           <div className="grid lg:grid-cols-4 gap-6 mb-8">
@@ -472,6 +517,8 @@ export default function GamesPage() {
           <div className="text-center mt-4 text-sm text-muted-foreground">
             Showing {games.length} of {totalCount} games
           </div>
+        )}
+          </>
         )}
 
       </div>
