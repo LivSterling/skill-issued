@@ -6,6 +6,12 @@ import {
   sanitizeSearchQuery,
   validateGameStructure 
 } from '@/lib/validations/game-schemas'
+import { 
+  apiCache,
+  generateGameListCacheKey,
+  handleConditionalRequest,
+  createCachedResponse 
+} from '@/lib/utils/api-cache'
 import type { GameApiParams } from '@/lib/types/game-types'
 
 /**
@@ -165,12 +171,54 @@ export async function GET(request: NextRequest) {
       console.warn('API request warnings:', validation.warnings)
     }
     
-    return NextResponse.json({
+    // Prepare response data with metadata
+    const responseData = {
       ...rawgData,
       meta: {
         ...rawgData.meta,
         cached_at: new Date().toISOString(),
-        warnings: validation.warnings
+        warnings: validation.warnings,
+        cache_key: generateGameListCacheKey(rawParams)
+      }
+    }
+
+    // Generate ETag based on response data and current timestamp
+    const lastModified = new Date()
+    const etag = apiCache.generateTimestampedETag(responseData, lastModified)
+
+    // Check for conditional request (304 Not Modified)
+    const conditionalResponse = handleConditionalRequest(
+      request.headers,
+      responseData,
+      {
+        cacheType: 'GAME_LIST',
+        etag,
+        lastModified
+      }
+    )
+
+    if (conditionalResponse) {
+      return conditionalResponse
+    }
+
+    // Determine cache type based on request parameters
+    let cacheType: keyof typeof apiCache.CACHE_DURATIONS = 'GAME_LIST'
+    if (rawParams.ordering?.includes('rating') && !rawParams.search) {
+      cacheType = 'POPULAR_GAMES'
+    } else if (rawParams.ordering?.includes('added') && rawParams.dates) {
+      cacheType = 'TRENDING_GAMES'
+    }
+
+    // Return cached response with proper headers
+    return createCachedResponse(responseData, {
+      cacheType,
+      etag,
+      lastModified,
+      headers: {
+        'X-Cache-Key': generateGameListCacheKey(rawParams),
+        'X-Total-Count': rawgData.count?.toString() || '0',
+        'X-Page': rawParams.page?.toString() || '1',
+        'X-Page-Size': rawParams.page_size?.toString() || '20'
       }
     })
     

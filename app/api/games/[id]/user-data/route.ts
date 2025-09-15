@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { 
+  apiCache,
+  generateUserGameCacheKey,
+  handleConditionalRequest,
+  createCachedResponse 
+} from '@/lib/utils/api-cache'
 
 /**
  * GET /api/games/[id]/user-data - Fetch user-specific game data
@@ -100,13 +106,42 @@ export async function GET(
         )
       }
 
-      return NextResponse.json({
+      const responseData = {
         data: userGame,
         meta: {
           game_id: gameId,
           user_id: user.id,
           exists: true,
-          last_updated: userGame.updated_at
+          last_updated: userGame.updated_at,
+          cache_key: generateUserGameCacheKey(user.id, gameId)
+        }
+      }
+
+      const lastModified = new Date(userGame.updated_at)
+      const etag = apiCache.generateTimestampedETag(responseData, lastModified)
+
+      // Check for conditional request
+      const conditionalResponse = handleConditionalRequest(
+        request.headers,
+        responseData,
+        {
+          cacheType: 'USER_GAME_DATA',
+          etag,
+          lastModified
+        }
+      )
+
+      if (conditionalResponse) {
+        return conditionalResponse
+      }
+
+      return createCachedResponse(responseData, {
+        cacheType: 'USER_GAME_DATA',
+        etag,
+        lastModified,
+        headers: {
+          'X-Cache-Key': generateUserGameCacheKey(user.id, gameId),
+          'X-User-Specific': 'true'
         }
       })
 
@@ -348,13 +383,30 @@ export async function POST(
         console.warn('User game update warnings:', validation.warnings)
       }
 
-      return NextResponse.json({
+      const responseData = {
         data: userGame,
         meta: {
           game_id: gameId,
           user_id: user.id,
           updated_at: upsertData.updated_at,
-          warnings: validation.warnings
+          warnings: validation.warnings,
+          cache_key: generateUserGameCacheKey(user.id, gameId)
+        }
+      }
+
+      const lastModified = new Date(upsertData.updated_at)
+      const etag = apiCache.generateTimestampedETag(responseData, lastModified)
+
+      // For POST requests, we use no-cache to ensure fresh data
+      return NextResponse.json(responseData, {
+        status: 200,
+        headers: {
+          'Cache-Control': apiCache.CACHE_CONTROL_HEADERS.NO_CACHE,
+          'ETag': etag,
+          'Last-Modified': lastModified.toUTCString(),
+          'X-Cache-Key': generateUserGameCacheKey(user.id, gameId),
+          'X-User-Specific': 'true',
+          'X-Action': 'UPDATE'
         }
       })
 
@@ -513,13 +565,26 @@ export async function DELETE(
         )
       }
 
-      return NextResponse.json({
+      const responseData = {
         success: true,
         meta: {
           game_id: gameId,
           user_id: user.id,
           deleted_at: new Date().toISOString(),
-          deleted_count: deletedData.length
+          deleted_count: deletedData.length,
+          cache_key: generateUserGameCacheKey(user.id, gameId)
+        }
+      }
+
+      // For DELETE requests, we use no-cache and add cache invalidation headers
+      return NextResponse.json(responseData, {
+        status: 200,
+        headers: {
+          'Cache-Control': apiCache.CACHE_CONTROL_HEADERS.NO_CACHE,
+          'X-Cache-Key': generateUserGameCacheKey(user.id, gameId),
+          'X-User-Specific': 'true',
+          'X-Action': 'DELETE',
+          'X-Cache-Invalidate': 'true'
         }
       })
 

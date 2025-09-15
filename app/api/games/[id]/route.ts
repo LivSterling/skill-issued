@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { RAWGService } from '@/lib/services/rawg-service'
 import { createClient } from '@/lib/supabase/server'
 import { validateGameStructure } from '@/lib/validations/game-schemas'
+import { 
+  apiCache,
+  generateGameCacheKey,
+  handleConditionalRequest,
+  createCachedResponse 
+} from '@/lib/utils/api-cache'
 
 /**
  * GET /api/games/[id] - Fetch individual game data with intelligent caching
@@ -60,14 +66,44 @@ export async function GET(
       }
     }
 
-    // Return fresh cached data
+    // Return fresh cached data with proper cache headers
     if (existingGame && !dbError && isCacheFresh) {
-      return NextResponse.json({
+      const cachedData = {
         ...(existingGame as any),
         meta: {
           source: 'cache',
           cached_at: (existingGame as any).updated_at,
-          fresh: true
+          fresh: true,
+          cache_key: generateGameCacheKey(gameId)
+        }
+      }
+
+      const lastModified = new Date((existingGame as any).updated_at)
+      const etag = apiCache.generateTimestampedETag(cachedData, lastModified)
+
+      // Check for conditional request
+      const conditionalResponse = handleConditionalRequest(
+        request.headers,
+        cachedData,
+        {
+          cacheType: 'GAME_DETAIL',
+          etag,
+          lastModified
+        }
+      )
+
+      if (conditionalResponse) {
+        return conditionalResponse
+      }
+
+      return createCachedResponse(cachedData, {
+        cacheType: 'GAME_DETAIL',
+        etag,
+        lastModified,
+        headers: {
+          'X-Cache-Key': generateGameCacheKey(gameId),
+          'X-Cache-Status': 'HIT',
+          'X-Cache-Age': Math.floor((Date.now() - lastModified.getTime()) / 1000).toString()
         }
       })
     }
@@ -204,12 +240,27 @@ export async function GET(
       }
 
       // Successfully cached and returning fresh data
-      return NextResponse.json({
+      const responseData = {
         ...(upsertedGame as any),
         meta: {
           source: 'api',
           fetched_at: (upsertedGame as any).updated_at,
-          cached: true
+          cached: true,
+          cache_key: generateGameCacheKey(gameId)
+        }
+      }
+
+      const lastModified = new Date((upsertedGame as any).updated_at)
+      const etag = apiCache.generateTimestampedETag(responseData, lastModified)
+
+      return createCachedResponse(responseData, {
+        cacheType: 'GAME_DETAIL',
+        etag,
+        lastModified,
+        headers: {
+          'X-Cache-Key': generateGameCacheKey(gameId),
+          'X-Cache-Status': 'MISS',
+          'X-Data-Source': 'RAWG-API'
         }
       })
 
