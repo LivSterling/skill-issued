@@ -18,6 +18,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useAuth } from "@/hooks/use-auth"
 import { useGameDetail } from "@/hooks/use-game-detail"
+import { UserGameActions } from "@/components/games/user-game-actions"
 import { 
   Star, 
   Clock, 

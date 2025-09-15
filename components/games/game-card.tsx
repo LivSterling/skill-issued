@@ -24,6 +24,7 @@ import {
   hasUserGameData 
 } from "@/lib/utils/game-utils"
 import type { GameCardProps, UserGameAction } from "@/lib/types/game-types"
+import { UserGameActions } from "@/components/games/user-game-actions"
 
 export function GameCard({ 
   game, 
@@ -245,43 +246,37 @@ export function GameCard({
             
             {/* User-specific actions for authenticated users */}
             {isAuthenticated && (
-              <div className="flex items-center gap-1" onClick={(e) => e.preventDefault()}>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="h-6 w-6 p-0"
-                  onClick={() => handleUserAction('wishlist')}
-                  disabled={isLoading}
-                >
-                  <Heart className={`w-3 h-3 ${isFavorite ? 'fill-current' : ''}`} />
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="h-6 w-6 p-0"
-                  onClick={() => handleUserAction('library')}
-                  disabled={isLoading}
-                >
-                  <Plus className="w-3 h-3" />
-                </Button>
+              <div onClick={(e) => e.preventDefault()}>
+                <UserGameActions
+                  game={displayData}
+                  variant="inline"
+                  showLabels={false}
+                  onStatusChange={(status, userGame) => {
+                    console.log('Status changed:', status, userGame)
+                    // Optional: trigger parent component refresh
+                  }}
+                  onRatingChange={(rating, userGame) => {
+                    console.log('Rating changed:', rating, userGame)
+                  }}
+                />
               </div>
             )}
           </div>
           
-          {/* User status badge for authenticated users */}
-          {isAuthenticated && userStatus && (
-            <div className="mt-2">
-              <Badge variant="outline" className="text-xs">
-                {userStatusLabel}
-              </Badge>
-            </div>
-          )}
-          
-          {/* User rating display */}
-          {isAuthenticated && userRating && (
-            <div className="mt-2 flex items-center gap-1">
-              <Star className="w-3 h-3 fill-primary text-primary" />
-              <span className="text-xs text-muted-foreground">Your rating: {userRating}/5</span>
+          {/* User status and rating display */}
+          {isAuthenticated && (userStatus || userRating) && (
+            <div className="mt-2 flex items-center justify-between">
+              {userStatus && (
+                <Badge variant="outline" className="text-xs">
+                  {userStatusLabel}
+                </Badge>
+              )}
+              {userRating && (
+                <div className="flex items-center gap-1">
+                  <Star className="w-3 h-3 fill-primary text-primary" />
+                  <span className="text-xs text-muted-foreground">{userRating}/5</span>
+                </div>
+              )}
             </div>
           )}
         </div>

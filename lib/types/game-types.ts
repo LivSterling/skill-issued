@@ -224,18 +224,50 @@ export interface UseTrendingGamesReturn {
 export interface UseUserGameParams {
   gameId: number
   userId?: string
+  enableAutoSave?: boolean
+  enableCache?: boolean
+  onStatusChange?: (status: UserGameStatus, userGame: UserGame) => void
+  onRatingChange?: (rating: number | null, userGame: UserGame) => void
+  onReviewChange?: (review: string | null, userGame: UserGame) => void
 }
 
 /**
  * Return type for useUserGame hook
  */
 export interface UseUserGameReturn {
+  // Core data
   userGame: UserGame | null
   loading: boolean
+  updating: boolean
   error: string | null
-  updateUserGame: (data: Partial<UserGame>) => Promise<void>
+  
+  // Local state
+  localChanges: Partial<UserGameUpdateData>
+  hasUnsavedChanges: boolean
+  
+  // Core operations
+  updateUserGame: (data: UserGameUpdateData) => Promise<UserGame>
   deleteUserGame: () => Promise<void>
-  refetch: () => Promise<void>
+  refetch: () => Promise<UserGame | null>
+  
+  // Convenient update methods
+  updateStatus: (status: UserGameStatus) => Promise<UserGame>
+  updateRating: (rating: number | null) => Promise<UserGame>
+  updateDifficulty: (difficulty: number | null) => Promise<UserGame>
+  updateHoursPlayed: (hours: number) => Promise<UserGame>
+  updateReview: (review: string | null) => Promise<UserGame>
+  toggleFavorite: () => Promise<UserGame>
+  toggleCompleted: () => Promise<UserGame>
+  
+  // Local state management
+  updateLocalState: (changes: Partial<UserGameUpdateData>) => void
+  discardLocalChanges: () => void
+  saveLocalChanges: () => Promise<void>
+  
+  // Utility methods
+  isInLibrary: () => boolean
+  getEffectiveData: () => UserGame | null
+  getCompletionPercentage: () => number
 }
 
 // ============================================================================
