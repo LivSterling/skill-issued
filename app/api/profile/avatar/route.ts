@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
       .update({
         avatar_url: avatarUrl,
         updated_at: new Date().toISOString()
-      })
+      } as any)
       .eq('id', user.id)
 
     if (updateError) {
@@ -166,7 +166,7 @@ export async function DELETE(req: NextRequest) {
       .from('profiles')
       .select('avatar_url')
       .eq('id', user.id)
-      .single()
+      .single() as any
 
     if (profileError) {
       console.error('Profile fetch error:', profileError)
@@ -194,7 +194,7 @@ export async function DELETE(req: NextRequest) {
       .update({
         avatar_url: null,
         updated_at: new Date().toISOString()
-      })
+      } as any)
       .eq('id', user.id)
 
     if (updateError) {
