@@ -1,343 +1,313 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { withValidation, ValidationContext, ValidatedRequest, unauthorizedError } from '@/lib/middleware/validation-middleware'
-import { updateProfileRequestSchema, createApiResponse } from '@/lib/validations/api-schemas'
-import { updateProfileSchema } from '@/lib/validations/profile-schemas'
 import { createClient } from '@/lib/supabase/server'
-import { updateProfile, getProfile } from '@/lib/database/queries'
-import { z } from 'zod'
+import { updateProfileSchema, createProfileSchema } from '@/lib/validations/profile-schemas'
 
-// Enhanced profile update schema with additional validation
-const profileUpdateValidationSchema = updateProfileRequestSchema.extend({
-  // Server-side specific validations
-  honeypot: z.string().max(0).optional(),
-  lastModified: z.string().datetime().optional()
-}).refine(
-  (data) => {
-    if (data.honeypot && data.honeypot.length > 0) {
-      return false
-    }
-    return true
-  },
-  { message: "Invalid request", path: ["honeypot"] }
-)
-
-// Profile query schema
-const profileQuerySchema = z.object({
-  username: z.string().optional(),
-  include: z.string().optional() // comma-separated list: gaming_preferences,social_stats
-})
-
-// Authentication helper
-async function getAuthenticatedUser(req: NextRequest) {
-  const supabase = createClient()
-  
-  // Get user from session
-  const { data: { user }, error } = await supabase.auth.getUser()
-  
-  if (error || !user) {
-    return null
-  }
-  
-  return user
-}
-
-// GET handler - Get user profile
-async function getProfileHandler(req: ValidatedRequest, context: ValidationContext): Promise<NextResponse> {
-  const { query } = req.validatedData
-  const { username, include } = query
-
+// GET /api/profile - Get current user's profile
+export async function GET(req: NextRequest) {
   try {
     const supabase = createClient()
-    
-    // If username is provided, get public profile
-    if (username) {
-      const profile = await getProfile(username)
-      
-      if (!profile) {
-        return NextResponse.json(
-          createApiResponse(false, null, {
-            code: 'PROFILE_NOT_FOUND',
-            message: 'Profile not found'
-          }),
-          { status: 404 }
-        )
-      }
 
-      // Check privacy settings
-      const user = await getAuthenticatedUser(req)
-      const isOwnProfile = user?.id === profile.id
-      
-      if (profile.privacy_level === 'private' && !isOwnProfile) {
-        return NextResponse.json(
-          createApiResponse(false, null, {
-            code: 'PROFILE_PRIVATE',
-            message: 'This profile is private'
-          }),
-          { status: 403 }
-        )
-      }
-
-      // Filter sensitive data for non-owners
-      let responseProfile = { ...profile }
-      if (!isOwnProfile) {
-        delete responseProfile.email
-        if (profile.privacy_level === 'friends') {
-          // In a real app, check if users are friends
-          // For now, show limited info
-          responseProfile = {
-            id: profile.id,
-            username: profile.username,
-            display_name: profile.display_name,
-            avatar_url: profile.avatar_url,
-            privacy_level: profile.privacy_level,
-            created_at: profile.created_at
-          }
-        }
-      }
-
+    // Get current user
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
       return NextResponse.json(
-        createApiResponse(true, { profile: responseProfile }, undefined, {
-          requestId: context.requestId
-        }),
-        { status: 200 }
+        { error: 'Unauthorized' },
+        { status: 401 }
       )
     }
 
-    // Get current user's profile
-    const user = await getAuthenticatedUser(req)
-    if (!user) {
-      return unauthorizedError('Authentication required')
-    }
+    // Get user profile
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single()
 
-    const profile = await getProfile(user.id)
-    
-    if (!profile) {
+    if (profileError) {
+      console.error('Profile fetch error:', profileError)
       return NextResponse.json(
-        createApiResponse(false, null, {
-          code: 'PROFILE_NOT_FOUND',
-          message: 'Profile not found'
-        }),
+        { error: 'Profile not found' },
         { status: 404 }
       )
     }
 
-    return NextResponse.json(
-      createApiResponse(true, { profile }, undefined, {
-        requestId: context.requestId
-      }),
-      { status: 200 }
-    )
+    console.log('Profile fetched successfully for user:', user.id)
+
+    return NextResponse.json({
+      profile,
+      user: {
+        id: user.id,
+        email: user.email
+      }
+    })
 
   } catch (error) {
-    console.error('Get profile error:', error)
-    
+    console.error('Profile GET error:', error)
     return NextResponse.json(
-      createApiResponse(false, null, {
-        code: 'INTERNAL_ERROR',
-        message: 'An unexpected error occurred'
-      }),
+      { error: 'Internal server error' },
       { status: 500 }
     )
   }
 }
 
-// PUT handler - Update user profile
-async function updateProfileHandler(req: ValidatedRequest, context: ValidationContext): Promise<NextResponse> {
-  const { body } = req.validatedData
-
+// POST /api/profile - Create user profile
+export async function POST(req: NextRequest) {
   try {
-    // Get authenticated user
-    const user = await getAuthenticatedUser(req)
-    if (!user) {
-      return unauthorizedError('Authentication required')
-    }
+    const body = await req.json()
+    const supabase = createClient()
 
-    // Get current profile
-    const currentProfile = await getProfile(user.id)
-    if (!currentProfile) {
+    // Get current user
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
       return NextResponse.json(
-        createApiResponse(false, null, {
-          code: 'PROFILE_NOT_FOUND',
-          message: 'Profile not found'
-        }),
-        { status: 404 }
+        { error: 'Unauthorized' },
+        { status: 401 }
       )
     }
 
-    // Check for username conflicts if username is being changed
-    if (body.username && body.username !== currentProfile.username) {
-      const supabase = createClient()
-      const { data: existingProfile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('username', body.username)
-        .neq('id', user.id)
-        .single()
+    // Check if user already has a profile
+    const { data: existingProfile, error: existingError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', user.id)
+      .maybeSingle()
 
-      if (existingProfile) {
+    if (existingError) {
+      console.error('Profile check error:', existingError)
+      return NextResponse.json(
+        { error: 'Failed to check existing profile' },
+        { status: 500 }
+      )
+    }
+
+    if (existingProfile) {
+      return NextResponse.json(
+        { error: 'Profile already exists' },
+        { status: 409 }
+      )
+    }
+
+    // Validate profile data
+    const validation = createProfileSchema.safeParse(body)
+    if (!validation.success) {
+      return NextResponse.json(
+        { 
+          error: 'Invalid profile data',
+          details: validation.error.errors.map(e => ({
+            field: e.path.join('.'),
+            message: e.message
+          }))
+        },
+        { status: 400 }
+      )
+    }
+
+    const profileData = validation.data
+
+    // Check if username is available
+    const { data: existingProfiles, error: checkError } = await supabase
+      .from('profiles')
+      .select('id, username')
+      .eq('username', profileData.username)
+
+    if (checkError) {
+      console.error('Username check error:', checkError)
+      return NextResponse.json(
+        { error: 'Failed to check username availability' },
+        { status: 500 }
+      )
+    }
+
+    if (existingProfiles && existingProfiles.length > 0) {
+      return NextResponse.json(
+        { error: 'Username is already taken' },
+        { status: 409 }
+      )
+    }
+
+    // Create profile
+    const { data: newProfile, error: createError } = await supabase
+      .from('profiles')
+      .insert({
+        id: user.id,
+        username: profileData.username,
+        display_name: profileData.display_name || profileData.username,
+        email: user.email,
+        bio: profileData.bio || null,
+        privacy_level: profileData.privacy_level || 'public',
+        gaming_preferences: profileData.gaming_preferences || null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      } as any)
+      .select()
+      .single()
+
+    if (createError) {
+      console.error('Profile creation error:', createError)
+      return NextResponse.json(
+        { error: 'Failed to create profile' },
+        { status: 500 }
+      )
+    }
+
+    console.log('Profile created successfully for user:', user.id)
+
+    return NextResponse.json({
+      message: 'Profile created successfully',
+      profile: newProfile
+    }, { status: 201 })
+
+  } catch (error) {
+    console.error('Profile POST error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
+// PUT /api/profile - Update current user's profile
+export async function PUT(req: NextRequest) {
+  try {
+    const body = await req.json()
+    const supabase = createClient()
+
+    // Get current user
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
+    // Validate update data
+    const validation = updateProfileSchema.safeParse(body)
+    if (!validation.success) {
+      return NextResponse.json(
+        { 
+          error: 'Invalid profile data',
+          details: validation.error.errors.map(e => ({
+            field: e.path.join('.'),
+            message: e.message
+          }))
+        },
+        { status: 400 }
+      )
+    }
+
+    const updateData = validation.data
+
+    // Check if username is being changed and if it's available
+    if (updateData.username) {
+      const { data: existingProfiles, error: checkError } = await supabase
+        .from('profiles')
+        .select('id, username')
+        .eq('username', updateData.username)
+        .neq('id', user.id) // Exclude current user
+
+      if (checkError) {
+        console.error('Username check error:', checkError)
         return NextResponse.json(
-          createApiResponse(false, null, {
-            code: 'USERNAME_TAKEN',
-            message: 'This username is already taken'
-          }),
+          { error: 'Failed to check username availability' },
+          { status: 500 }
+        )
+      }
+
+      if (existingProfiles && existingProfiles.length > 0) {
+        return NextResponse.json(
+          { error: 'Username is already taken' },
           { status: 409 }
         )
       }
     }
 
-    // Prepare update data
-    const updateData: any = {}
-    
-    if (body.displayName !== undefined) updateData.display_name = body.displayName
-    if (body.bio !== undefined) updateData.bio = body.bio
-    if (body.avatarUrl !== undefined) updateData.avatar_url = body.avatarUrl
-    if (body.privacyLevel !== undefined) updateData.privacy_level = body.privacyLevel
-    if (body.gamingPreferences !== undefined) updateData.gaming_preferences = body.gamingPreferences
-
     // Update profile
-    const updatedProfile = await updateProfile(user.id, updateData)
-
-    if (!updatedProfile) {
-      return NextResponse.json(
-        createApiResponse(false, null, {
-          code: 'UPDATE_FAILED',
-          message: 'Failed to update profile'
-        }),
-        { status: 500 }
-      )
-    }
-
-    // Log profile update
-    console.log('Profile updated:', {
-      userId: user.id,
-      changes: Object.keys(updateData),
-      ipAddress: context.ipAddress,
-      timestamp: new Date().toISOString()
-    })
-
-    return NextResponse.json(
-      createApiResponse(true, { 
-        profile: updatedProfile,
-        message: 'Profile updated successfully'
-      }, undefined, {
-        requestId: context.requestId
-      }),
-      { status: 200 }
-    )
-
-  } catch (error) {
-    console.error('Update profile error:', error)
-    
-    return NextResponse.json(
-      createApiResponse(false, null, {
-        code: 'INTERNAL_ERROR',
-        message: 'An unexpected error occurred'
-      }),
-      { status: 500 }
-    )
-  }
-}
-
-// DELETE handler - Delete user profile (soft delete)
-async function deleteProfileHandler(req: ValidatedRequest, context: ValidationContext): Promise<NextResponse> {
-  try {
-    // Get authenticated user
-    const user = await getAuthenticatedUser(req)
-    if (!user) {
-      return unauthorizedError('Authentication required')
-    }
-
-    const supabase = createClient()
-
-    // Soft delete profile (mark as deleted)
-    const { error } = await supabase
+    const { data: updatedProfile, error: updateError } = await supabase
       .from('profiles')
-      .update({ 
-        deleted_at: new Date().toISOString(),
-        username: `deleted_${user.id}`, // Prevent username conflicts
-        display_name: 'Deleted User',
-        bio: null,
-        avatar_url: null,
-        privacy_level: 'private'
+      .update({
+        ...updateData,
+        updated_at: new Date().toISOString()
       })
       .eq('id', user.id)
+      .select()
+      .single()
 
-    if (error) {
-      console.error('Profile deletion error:', error)
+    if (updateError) {
+      console.error('Profile update error:', updateError)
       return NextResponse.json(
-        createApiResponse(false, null, {
-          code: 'DELETE_FAILED',
-          message: 'Failed to delete profile'
-        }),
+        { error: 'Failed to update profile' },
         { status: 500 }
       )
     }
 
-    // Log profile deletion
-    console.log('Profile deleted:', {
-      userId: user.id,
-      ipAddress: context.ipAddress,
-      timestamp: new Date().toISOString()
+    console.log('Profile updated successfully for user:', user.id)
+
+    return NextResponse.json({
+      message: 'Profile updated successfully',
+      profile: updatedProfile
     })
 
-    return NextResponse.json(
-      createApiResponse(true, {
-        message: 'Profile deleted successfully'
-      }, undefined, {
-        requestId: context.requestId
-      }),
-      { status: 200 }
-    )
-
   } catch (error) {
-    console.error('Delete profile error:', error)
-    
+    console.error('Profile PUT error:', error)
     return NextResponse.json(
-      createApiResponse(false, null, {
-        code: 'INTERNAL_ERROR',
-        message: 'An unexpected error occurred'
-      }),
+      { error: 'Internal server error' },
       { status: 500 }
     )
   }
 }
 
-// Apply validation middleware
-export const GET = withValidation({
-  query: profileQuerySchema,
-  allowedMethods: ['GET']
-})(getProfileHandler)
+// DELETE /api/profile - Delete current user's profile (and account)
+export async function DELETE(req: NextRequest) {
+  try {
+    const supabase = createClient()
 
-export const PUT = withValidation({
-  body: profileUpdateValidationSchema,
-  allowedMethods: ['PUT'],
-  rateLimit: {
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    maxAttempts: 20, // 20 profile updates per 15 minutes
-    identifier: (req) => req.headers.get('x-user-id') || req.headers.get('x-forwarded-for') || 'unknown'
+    // Get current user
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
+    // Delete profile (this will cascade due to foreign key constraints)
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .delete()
+      .eq('id', user.id)
+
+    if (profileError) {
+      console.error('Profile deletion error:', profileError)
+      return NextResponse.json(
+        { error: 'Failed to delete profile' },
+        { status: 500 }
+      )
+    }
+
+    // Delete user account
+    const { error: deleteError } = await supabase.auth.admin.deleteUser(user.id)
+    
+    if (deleteError) {
+      console.error('User deletion error:', deleteError)
+      // Profile is already deleted, but user account deletion failed
+      return NextResponse.json(
+        { error: 'Profile deleted but failed to delete user account' },
+        { status: 500 }
+      )
+    }
+
+    console.log('User and profile deleted successfully:', user.id)
+
+    return NextResponse.json({
+      message: 'Account deleted successfully'
+    })
+
+  } catch (error) {
+    console.error('Profile DELETE error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
   }
-})(updateProfileHandler)
-
-export const DELETE = withValidation({
-  allowedMethods: ['DELETE'],
-  rateLimit: {
-    windowMs: 60 * 60 * 1000, // 1 hour
-    maxAttempts: 1, // Only 1 deletion per hour (safety measure)
-    identifier: (req) => req.headers.get('x-user-id') || req.headers.get('x-forwarded-for') || 'unknown'
-  }
-})(deleteProfileHandler)
-
-// Handle unsupported methods
-export async function POST() {
-  return NextResponse.json(
-    createApiResponse(false, null, {
-      code: 'METHOD_NOT_ALLOWED',
-      message: 'Method not allowed'
-    }),
-    { status: 405 }
-  )
-}
-
-export async function PATCH() {
-  return POST()
 }

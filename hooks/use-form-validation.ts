@@ -273,7 +273,7 @@ export function useFormValidation<T extends Record<string, any>>(
   }, [rules, validateOnChange, debounceMs, debouncedValidateField, validateField])
 
   // Update multiple values
-  const setValues = useCallback((newValues: Partial<T>) => {
+  const setMultipleValues = useCallback((newValues: Partial<T>) => {
     setValues(prev => ({ ...prev, ...newValues }))
     
     Object.keys(newValues).forEach(field => {
@@ -377,7 +377,7 @@ export function useFormValidation<T extends Record<string, any>>(
     // Values
     values,
     setValue,
-    setValues,
+    setMultipleValues,
     
     // Validation state
     validation,

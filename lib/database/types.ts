@@ -43,10 +43,11 @@ export interface Profile {
 // Friendship relationship
 export interface Friendship {
   id: UUID
-  user_id: UUID
-  friend_id: UUID
+  requester_id: UUID
+  recipient_id: UUID
   status: FriendshipStatus
   created_at: Timestamp
+  updated_at: Timestamp
 }
 
 // Follow relationship (for public following without mutual acceptance)
@@ -95,7 +96,7 @@ export interface UpdateProfileData {
 
 // Friendship management payloads
 export interface CreateFriendshipData {
-  friend_id: UUID
+  recipient_id: UUID
 }
 
 export interface UpdateFriendshipData {
@@ -223,10 +224,10 @@ export interface Database {
         Insert: Omit<Profile, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<Profile, 'id' | 'created_at'>>
       }
-      friendships: {
+      friend_requests: {
         Row: Friendship
-        Insert: Omit<Friendship, 'id' | 'created_at'>
-        Update: Partial<Omit<Friendship, 'id' | 'user_id' | 'friend_id' | 'created_at'>>
+        Insert: Omit<Friendship, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<Friendship, 'id' | 'requester_id' | 'recipient_id' | 'created_at'>>
       }
       follows: {
         Row: Follow

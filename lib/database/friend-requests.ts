@@ -485,15 +485,15 @@ export async function getFriendsListWithProfiles(
 ): Promise<DatabaseListResponse<any>> {
   try {
     const { data, error } = await supabase
-      .from('friendships')
+      .from('friend_requests')
       .select(`
         created_at,
-        user_id,
-        friend_id,
-        user_profile:profiles!friendships_user_id_fkey(*),
-        friend_profile:profiles!friendships_friend_id_fkey(*)
+        requester_id,
+        recipient_id,
+        requester_profile:profiles!friend_requests_requester_id_fkey(*),
+        recipient_profile:profiles!friend_requests_recipient_id_fkey(*)
       `)
-      .or(`user_id.eq.${userId},friend_id.eq.${userId}`)
+      .or(`requester_id.eq.${userId},recipient_id.eq.${userId}`)
       .eq('status', 'accepted')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)
@@ -504,13 +504,13 @@ export async function getFriendsListWithProfiles(
     }
 
     // Transform data to get the friend's profile (not the current user's)
-    const friends = data?.map(friendship => {
-      const isCurrentUserSender = friendship.user_id === userId
-      const friendProfile = isCurrentUserSender ? friendship.friend_profile : friendship.user_profile
+    const friends = data?.map(request => {
+      const isCurrentUserRequester = request.requester_id === userId
+      const friendProfile = isCurrentUserRequester ? request.recipient_profile : request.requester_profile
       
       return {
         ...friendProfile,
-        friendship_date: friendship.created_at
+        friendship_date: request.created_at
       }
     }).filter(Boolean) || []
 

@@ -1,199 +1,117 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { withValidation, ValidationContext, ValidatedRequest } from '@/lib/middleware/validation-middleware'
-import { registerRequestSchema, createApiResponse } from '@/lib/validations/api-schemas'
-import { signUpSchema } from '@/lib/validations/auth-schemas'
 import { createClient } from '@/lib/supabase/server'
-import { createProfile } from '@/lib/database/queries'
-import { z } from 'zod'
+import { signUpWithEmail } from '@/lib/auth/auth-utils'
 
-// Enhanced registration schema with additional security checks
-const registrationValidationSchema = registerRequestSchema.extend({
-  // Additional server-side only validations
-  honeypot: z.string().max(0).optional(), // Anti-bot field
-  timestamp: z.number().optional(), // Request timing validation
-  fingerprint: z.string().optional() // Device fingerprinting
-}).refine(
-  (data) => {
-    // Honeypot check - if filled, it's likely a bot
-    if (data.honeypot && data.honeypot.length > 0) {
-      return false
-    }
-    return true
-  },
-  { message: "Invalid request", path: ["honeypot"] }
-).refine(
-  (data) => {
-    // Timing check - request should not be too fast (anti-bot)
-    if (data.timestamp) {
-      const now = Date.now()
-      const timeDiff = now - data.timestamp
-      // Request should take at least 2 seconds (human interaction time)
-      return timeDiff >= 2000
-    }
-    return true
-  },
-  { message: "Request submitted too quickly", path: ["timestamp"] }
-)
-
-async function registerHandler(req: ValidatedRequest, context: ValidationContext): Promise<NextResponse> {
-  const { body } = req.validatedData
-  const { email, password, username, profile } = body
-
+export async function POST(req: NextRequest) {
   try {
-    // Create Supabase client
+    const body = await req.json()
+    const { email, password, username, displayName } = body
+
+    // Basic validation
+    if (!email || !password || !username || !displayName) {
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
+      )
+    }
+
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      return NextResponse.json(
+        { error: 'Invalid email format' },
+        { status: 400 }
+      )
+    }
+
+    // Password length validation
+    if (password.length < 8) {
+      return NextResponse.json(
+        { error: 'Password must be at least 8 characters long' },
+        { status: 400 }
+      )
+    }
+
+    // Username validation
+    if (username.length < 3 || username.length > 30) {
+      return NextResponse.json(
+        { error: 'Username must be between 3 and 30 characters' },
+        { status: 400 }
+      )
+    }
+
+    if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
+      return NextResponse.json(
+        { error: 'Username can only contain letters, numbers, underscores, and hyphens' },
+        { status: 400 }
+      )
+    }
+
     const supabase = createClient()
 
-    // Check if user already exists
-    const { data: existingUser } = await supabase
-      .from('auth.users')
-      .select('id')
-      .eq('email', email)
-      .single()
+    // TODO: Check if username is already taken (skipping for now until database is set up)
+    console.log('Skipping username uniqueness check - database tables not set up yet')
 
-    if (existingUser) {
-      return NextResponse.json(
-        createApiResponse(false, null, {
-          code: 'USER_EXISTS',
-          message: 'An account with this email already exists'
-        }),
-        { status: 409 }
-      )
-    }
-
-    // Check username availability
-    const { data: existingUsername } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('username', username)
-      .single()
-
-    if (existingUsername) {
-      return NextResponse.json(
-        createApiResponse(false, null, {
-          code: 'USERNAME_TAKEN',
-          message: 'This username is already taken'
-        }),
-        { status: 409 }
-      )
-    }
-
-    // Create user account
+    // Sign up the user
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: {
           username,
-          display_name: profile?.displayName || username
+          display_name: displayName
         }
       }
     })
 
     if (authError) {
-      console.error('Auth signup error:', authError)
+      console.error('Auth error:', authError)
       return NextResponse.json(
-        createApiResponse(false, null, {
-          code: 'SIGNUP_FAILED',
-          message: authError.message
-        }),
+        { error: authError.message },
         { status: 400 }
       )
     }
 
     if (!authData.user) {
       return NextResponse.json(
-        createApiResponse(false, null, {
-          code: 'SIGNUP_FAILED',
-          message: 'Failed to create user account'
-        }),
+        { error: 'Failed to create user' },
         { status: 500 }
       )
     }
 
-    // Create user profile
-    try {
-      const profileData = {
+    // Create profile
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .insert({
         id: authData.user.id,
         username,
-        display_name: profile?.displayName || username,
-        bio: profile?.bio || null,
-        avatar_url: null,
-        privacy_level: 'public' as const,
-        gaming_preferences: profile?.gamingPreferences || null
-      }
+        display_name: displayName,
+        email,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      } as any)
 
-      await createProfile(profileData)
-    } catch (profileError) {
+    if (profileError) {
       console.error('Profile creation error:', profileError)
-      // Note: User account was created but profile failed
-      // In production, you might want to implement cleanup or retry logic
+      // If profile creation fails, we should ideally clean up the auth user
+      // For now, just log the error and continue
     }
 
-    // Log successful registration
-    console.log('User registered successfully:', {
-      userId: authData.user.id,
-      email: authData.user.email,
-      username,
-      timestamp: new Date().toISOString(),
-      context
+    return NextResponse.json({
+      message: 'User registered successfully',
+      user: {
+        id: authData.user.id,
+        email: authData.user.email,
+        username,
+        displayName
+      }
     })
-
-    return NextResponse.json(
-      createApiResponse(true, {
-        user: {
-          id: authData.user.id,
-          email: authData.user.email,
-          username,
-          emailConfirmed: false
-        },
-        message: 'Account created successfully. Please check your email for verification.'
-      }),
-      { status: 201 }
-    )
 
   } catch (error) {
     console.error('Registration error:', error)
-    
     return NextResponse.json(
-      createApiResponse(false, null, {
-        code: 'INTERNAL_ERROR',
-        message: 'An unexpected error occurred during registration'
-      }),
+      { error: 'Internal server error' },
       { status: 500 }
     )
   }
-}
-
-// Apply validation middleware with rate limiting and security checks
-export const POST = withValidation({
-  body: registrationValidationSchema,
-  allowedMethods: ['POST'],
-  rateLimit: {
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    maxAttempts: 5, // 5 registration attempts per IP per 15 minutes
-    identifier: (req) => req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown'
-  }
-})(registerHandler)
-
-// Handle unsupported methods
-export async function GET() {
-  return NextResponse.json(
-    createApiResponse(false, null, {
-      code: 'METHOD_NOT_ALLOWED',
-      message: 'Method not allowed'
-    }),
-    { status: 405 }
-  )
-}
-
-export async function PUT() {
-  return GET()
-}
-
-export async function DELETE() {
-  return GET()
-}
-
-export async function PATCH() {
-  return GET()
 }

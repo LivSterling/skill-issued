@@ -548,12 +548,12 @@ export async function unfollowUser(
 export async function getUserFriends(userId: string): Promise<DatabaseListResponse<Profile>> {
   try {
     const { data, error } = await supabase
-      .from('friendships')
+      .from('friend_requests')
       .select(`
-        friend_id,
-        profiles!friendships_friend_id_fkey(*)
+        recipient_id,
+        profiles!friend_requests_recipient_id_fkey(*)
       `)
-      .eq('user_id', userId)
+      .eq('requester_id', userId)
       .eq('status', 'accepted')
 
     if (error) {
@@ -561,7 +561,7 @@ export async function getUserFriends(userId: string): Promise<DatabaseListRespon
       return { data: null, error }
     }
 
-    const friends = data?.map(friendship => friendship.profiles).filter(Boolean) || []
+    const friends = data?.map(request => request.profiles).filter(Boolean) || []
     return { data: friends as Profile[], error: null }
   } catch (err) {
     console.error('Unexpected error fetching user friends:', err)
@@ -891,12 +891,12 @@ export async function getPendingFriendRequests(
 ): Promise<DatabaseListResponse<Friendship & { sender_profile: Profile }>> {
   try {
     const { data, error } = await supabase
-      .from('friendships')
+      .from('friend_requests')
       .select(`
         *,
-        sender_profile:profiles!friendships_user_id_fkey(*)
+        sender_profile:profiles!friend_requests_requester_id_fkey(*)
       `)
-      .eq('friend_id', userId)
+      .eq('recipient_id', userId)
       .eq('status', 'pending')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)
@@ -962,9 +962,9 @@ export async function getFriendshipStatus(
 ): Promise<DatabaseResponse<{ status: FriendshipStatus | null; friendship?: Friendship }>> {
   try {
     const { data, error } = await supabase
-      .from('friendships')
+      .from('friend_requests')
       .select('*')
-      .or(`and(user_id.eq.${userId},friend_id.eq.${otherUserId}),and(user_id.eq.${otherUserId},friend_id.eq.${userId})`)
+      .or(`and(requester_id.eq.${userId},recipient_id.eq.${otherUserId}),and(requester_id.eq.${otherUserId},recipient_id.eq.${userId})`)
       .maybeSingle()
 
     if (error) {
@@ -1034,15 +1034,15 @@ export async function getFriendsListEnhanced(
 ): Promise<DatabaseListResponse<Profile & { friendship_date: string }>> {
   try {
     const { data, error } = await supabase
-      .from('friendships')
+      .from('friend_requests')
       .select(`
         created_at,
-        user_id,
-        friend_id,
-        user_profile:profiles!friendships_user_id_fkey(*),
-        friend_profile:profiles!friendships_friend_id_fkey(*)
+        requester_id,
+        recipient_id,
+        requester_profile:profiles!friend_requests_requester_id_fkey(*),
+        recipient_profile:profiles!friend_requests_recipient_id_fkey(*)
       `)
-      .or(`user_id.eq.${userId},friend_id.eq.${userId}`)
+      .or(`requester_id.eq.${userId},recipient_id.eq.${userId}`)
       .eq('status', 'accepted')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)
@@ -1053,13 +1053,13 @@ export async function getFriendsListEnhanced(
     }
 
     // Transform data to get the friend's profile (not the current user's)
-    const friends = data?.map(friendship => {
-      const isCurrentUserSender = friendship.user_id === userId
-      const friendProfile = isCurrentUserSender ? friendship.friend_profile : friendship.user_profile
+    const friends = data?.map(request => {
+      const isCurrentUserRequester = request.requester_id === userId
+      const friendProfile = isCurrentUserRequester ? request.recipient_profile : request.requester_profile
       
       return {
         ...friendProfile,
-        friendship_date: friendship.created_at
+        friendship_date: request.created_at
       }
     }).filter(Boolean) || []
 

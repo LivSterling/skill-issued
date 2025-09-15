@@ -2,8 +2,6 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
-import { sessionManager } from '@/lib/auth/session-manager'
-import { authPersistence, saveAuthData, loadAuthData } from '@/lib/auth/auth-persistence'
 import type { User, Session, AuthError } from '@supabase/supabase-js'
 
 // Define the user profile type
@@ -139,53 +137,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }
 
-  // Initialize auth state with persistence and session management
+  // Initialize auth state with simple Supabase session management
   useEffect(() => {
     let mounted = true
 
-    // Initialize authentication with persistence
+    // Get initial session
     const initializeAuth = async () => {
       try {
-        // First, try to load persisted auth data
-        const persistedData = loadAuthData()
-        
-        if (mounted && persistedData.user && persistedData.session) {
-          console.log('Loading persisted auth data')
-          setUser(persistedData.user)
-          setSession(persistedData.session as Session)
-          
-          if (persistedData.profile) {
-            setUserProfile(persistedData.profile)
-          } else if (persistedData.user) {
-            // Fetch fresh profile if not persisted
-            const profile = await fetchUserProfile(persistedData.user.id)
-            setUserProfile(profile)
-            if (profile) {
-              authPersistence.saveProfile(profile)
-            }
-          }
-          
-          setLoading(false)
-        }
-
-        // Initialize session manager (this will also handle fresh sessions)
-        await sessionManager.initialize()
+        const { data: { session }, error } = await supabase.auth.getSession()
         
         if (mounted) {
-          const sessionState = sessionManager.getSessionState()
-          
-          // Only update if we don't have persisted data or if session manager has newer data
-          if (!persistedData.user || !persistedData.session) {
-            setSession(sessionState.session)
-            setUser(sessionState.user)
+          if (session?.user) {
+            setSession(session)
+            setUser(session.user)
             
-            if (sessionState.user) {
-              const profile = await fetchUserProfile(sessionState.user.id)
-              setUserProfile(profile)
-            }
+            // Fetch user profile
+            const profile = await fetchUserProfile(session.user.id)
+            setUserProfile(profile)
           }
-          
-          setLoading(sessionState.isLoading)
+          setLoading(false)
         }
       } catch (error) {
         console.error('Error initializing authentication:', error)
@@ -197,26 +167,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     initializeAuth()
 
-    // Listen for session changes from session manager
-    const unsubscribe = sessionManager.addSessionChangeListener(async (session, user) => {
+    // Listen for auth changes using Supabase's built-in listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return
 
-      console.log('Session changed:', user?.id)
+      console.log('Auth state changed:', event, session?.user?.id)
       
       setSession(session)
-      setUser(user)
+      setUser(session?.user ?? null)
       
-      if (user) {
+      if (session?.user) {
         // Fetch user profile
-        const profile = await fetchUserProfile(user.id)
+        const profile = await fetchUserProfile(session.user.id)
         setUserProfile(profile)
-        
-        // Persist the auth data
-        saveAuthData(user, session, profile)
       } else {
-        // Clear profile and persisted data when user logs out
+        // Clear profile when user logs out
         setUserProfile(null)
-        authPersistence.clearAll()
       }
       
       setLoading(false)
@@ -225,7 +191,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // Cleanup on unmount
     return () => {
       mounted = false
-      unsubscribe()
+      subscription.unsubscribe()
     }
   }, [])
 

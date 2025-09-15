@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import type { Database } from '../database/types'
 
@@ -7,7 +7,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
 // Server-side client with service role key for admin operations
-export const supabaseAdmin = createClient<Database>(supabaseUrl, supabaseServiceKey, {
+export const supabaseAdmin = createSupabaseClient<Database>(supabaseUrl, supabaseServiceKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false
@@ -15,10 +15,27 @@ export const supabaseAdmin = createClient<Database>(supabaseUrl, supabaseService
 })
 
 // Server-side client for user operations (uses user's session)
+export const createClient = () => {
+  const cookieStore = cookies()
+
+  return createSupabaseClient<Database>(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: false
+    },
+    global: {
+      headers: {
+        Cookie: cookieStore.toString()
+      }
+    }
+  })
+}
+
 export const createServerClient = () => {
   const cookieStore = cookies()
 
-  return createClient<Database>(supabaseUrl, supabaseAnonKey, {
+  return createSupabaseClient<Database>(supabaseUrl, supabaseAnonKey, {
     auth: {
       autoRefreshToken: true,
       persistSession: true,
