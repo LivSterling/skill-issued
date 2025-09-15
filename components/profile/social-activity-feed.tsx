@@ -14,6 +14,7 @@ import {
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu'
+import { createMockGame, transformGameForDisplay } from '@/lib/utils/game-utils'
 import { 
   Activity, 
   Users, 
@@ -76,9 +77,12 @@ interface SocialActivity {
       avatar_url: string | null
     }
     game_data?: {
-      id: string
+      id: number
       title: string
-      cover_url?: string
+      image: string
+      year: number | null
+      genres: string[]
+      rating: number
     }
     content_data?: {
       title?: string
@@ -133,11 +137,31 @@ export function SocialActivityFeed({
     ]
 
     const mockGames = [
-      { id: '1', title: 'Cyberpunk 2077', cover_url: '/cyberpunk-2077-inspired-cover.png' },
-      { id: '2', title: 'The Last of Us Part II', cover_url: '/the-last-of-us-part-2-game-cover.jpg' },
-      { id: '3', title: 'Ghost of Tsushima', cover_url: '/ghost-of-tsushima-game-cover.jpg' },
-      { id: '4', title: 'Hades', cover_url: '/hades-game-cover.png' },
-      { id: '5', title: 'Spider-Man 2', cover_url: '/spider-man-2-game-cover.jpg' },
+      transformGameForDisplay(createMockGame({ 
+        id: 1, 
+        name: 'Cyberpunk 2077', 
+        background_image: '/cyberpunk-2077-inspired-cover.png' 
+      })),
+      transformGameForDisplay(createMockGame({ 
+        id: 2, 
+        name: 'The Last of Us Part II', 
+        background_image: '/the-last-of-us-part-2-game-cover.jpg' 
+      })),
+      transformGameForDisplay(createMockGame({ 
+        id: 3, 
+        name: 'Ghost of Tsushima', 
+        background_image: '/ghost-of-tsushima-game-cover.jpg' 
+      })),
+      transformGameForDisplay(createMockGame({ 
+        id: 4, 
+        name: 'Hades', 
+        background_image: '/hades-game-cover.png' 
+      })),
+      transformGameForDisplay(createMockGame({ 
+        id: 5, 
+        name: 'Spider-Man 2', 
+        background_image: '/spider-man-2-game-cover.jpg' 
+      })),
     ]
 
     const activityTypes: ActivityType[] = [
@@ -417,9 +441,9 @@ export function SocialActivityFeed({
           {activity.type === 'review_posted' && content && (
             <div className="bg-muted/50 rounded-lg p-3 mt-2">
               <div className="flex items-center gap-2 mb-2">
-                {game?.cover_url && (
+                {game?.image && (
                   <img 
-                    src={game.cover_url} 
+                    src={game.image} 
                     alt={game.title}
                     className="w-8 h-8 rounded object-cover"
                   />
@@ -444,9 +468,9 @@ export function SocialActivityFeed({
 
           {(activity.type === 'game_added' || activity.type === 'game_completed' || activity.type === 'achievement_earned') && game && (
             <div className="flex items-center gap-2 mt-2">
-              {game.cover_url && (
+              {game.image && (
                 <img 
-                  src={game.cover_url} 
+                  src={game.image} 
                   alt={game.title}
                   className="w-10 h-10 rounded object-cover"
                 />

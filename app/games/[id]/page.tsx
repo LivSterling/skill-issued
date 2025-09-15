@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback, useEffect } from "react"
+import { useParams } from "next/navigation"
 import { Navigation } from "@/components/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,7 +14,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Skeleton } from "@/components/ui/skeleton"
 import { useAuth } from "@/hooks/use-auth"
+import { useGameDetail } from "@/hooks/use-game-detail"
 import { 
   Star, 
   Clock, 
@@ -28,16 +32,23 @@ import {
   User,
   Edit,
   Bookmark,
-  Flag
+  Flag,
+  AlertCircle,
+  Loader2,
+  ArrowLeft
 } from "lucide-react"
 import Link from "next/link"
 
 export default function GameDetailPage() {
+  const params = useParams()
+  const gameId = params?.id as string
   const [userRating, setUserRating] = useState([0])
   const [difficultyRating, setDifficultyRating] = useState([3])
   const [hoursPlayed, setHoursPlayed] = useState("")
   const [completed, setCompleted] = useState(false)
   const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false)
+  const [reviewText, setReviewText] = useState("")
+  const [isUpdating, setIsUpdating] = useState(false)
   
   const { 
     isAuthenticated, 
@@ -48,26 +59,74 @@ export default function GameDetailPage() {
     avatarUrl 
   } = useAuth()
 
-  // Mock game data
-  const game = {
-    id: 1,
-    title: "Baldur's Gate 3",
-    year: 2023,
-    developer: "Larian Studios",
-    publisher: "Larian Studios",
-    genre: ["RPG", "Turn-Based Strategy", "Fantasy"],
-    platforms: ["PC", "PS5", "Xbox Series X/S", "macOS"],
-    rating: 4.8,
-    totalRatings: "125K",
-    difficulty: 3.2,
-    averageHours: 100,
-    image: "/baldurs-gate-3-inspired-cover.png",
-    description:
-      "Baldur's Gate 3 is a story-rich, party-based RPG set in the universe of Dungeons & Dragons, where your choices shape a tale of fellowship and betrayal, survival and sacrifice, and the lure of absolute power.",
-    releaseDate: "August 3, 2023",
-    esrbRating: "M",
-    tags: ["Story Rich", "Character Customization", "Choices Matter", "Co-op", "Turn-Based Combat"],
-  }
+  // Use real game data from RAWG API
+  const { 
+    game, 
+    userGame, 
+    loading, 
+    error, 
+    updateUserGame, 
+    refetch 
+  } = useGameDetail(gameId)
+
+  // Initialize form values from user game data
+  useEffect(() => {
+    if (userGame) {
+      setUserRating([userGame.user_rating || 0])
+      setDifficultyRating([userGame.difficulty_rating || 3])
+      setHoursPlayed(userGame.hours_played?.toString() || "")
+      setCompleted(userGame.completed || false)
+      setReviewText(userGame.review || "")
+    }
+  }, [userGame])
+
+  // Handle user game updates
+  const handleUserGameUpdate = useCallback(async (data: any) => {
+    if (!isAuthenticated) return
+    
+    setIsUpdating(true)
+    try {
+      await updateUserGame(data)
+    } catch (error) {
+      console.error('Failed to update user game:', error)
+      // Optionally show error toast
+    } finally {
+      setIsUpdating(false)
+    }
+  }, [isAuthenticated, updateUserGame])
+
+  // Handle review submission
+  const handleReviewSubmit = useCallback(async () => {
+    await handleUserGameUpdate({
+      user_rating: userRating[0] || null,
+      difficulty_rating: difficultyRating[0] || null,
+      hours_played: parseInt(hoursPlayed) || 0,
+      completed,
+      review: reviewText || null
+    })
+    setIsReviewDialogOpen(false)
+  }, [userRating, difficultyRating, hoursPlayed, completed, reviewText, handleUserGameUpdate])
+
+  // Transform game data for display
+  const displayGame = game ? {
+    id: game.id,
+    title: game.name,
+    year: game.released ? new Date(game.released).getFullYear() : null,
+    developer: game.developers?.[0]?.name || 'Unknown Developer',
+    publisher: game.publishers?.[0]?.name || 'Unknown Publisher',
+    genre: game.genres?.map(g => g.name) || [],
+    platforms: game.platforms?.map(p => p.platform.name) || [],
+    rating: game.rating || 0,
+    totalRatings: game.ratings_count ? `${Math.round(game.ratings_count / 1000)}K` : '0',
+    difficulty: 3.2, // We don't have this from RAWG, could calculate from user ratings
+    averageHours: game.playtime || 0,
+    image: game.background_image || "/placeholder.svg",
+    description: game.description || 'No description available.',
+    releaseDate: game.released || 'Unknown',
+    esrbRating: game.esrb_rating?.name || 'Not Rated',
+    tags: game.tags?.map(t => t.name).slice(0, 5) || [],
+    metacritic: game.metacritic
+  } : null
 
   const reviews = [
     {
@@ -139,6 +198,90 @@ export default function GameDetailPage() {
     )
   }
 
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background pb-16 md:pb-0">
+        <Navigation />
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          <div className="grid lg:grid-cols-4 gap-8 mb-12">
+            <div className="col-span-1">
+              <Skeleton className="aspect-[2/3] w-full" />
+            </div>
+            <div className="lg:col-span-2 space-y-4">
+              <Skeleton className="h-12 w-3/4" />
+              <Skeleton className="h-6 w-1/2" />
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/4" />
+              </div>
+            </div>
+            {isAuthenticated && (
+              <div className="space-y-4">
+                <Skeleton className="h-32 w-full" />
+                <Skeleton className="h-24 w-full" />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background pb-16 md:pb-0">
+        <Navigation />
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          <div className="text-center py-12">
+            <Alert className="max-w-md mx-auto">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                {error}
+                <div className="mt-4 space-x-2">
+                  <Button variant="outline" onClick={refetch}>
+                    Try Again
+                  </Button>
+                  <Button variant="outline" asChild>
+                    <Link href="/games">
+                      <ArrowLeft className="w-4 h-4 mr-2" />
+                      Back to Games
+                    </Link>
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Game not found
+  if (!game || !displayGame) {
+    return (
+      <div className="min-h-screen bg-background pb-16 md:pb-0">
+        <Navigation />
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          <div className="text-center py-12">
+            <h1 className="text-2xl font-bold mb-4">Game Not Found</h1>
+            <p className="text-muted-foreground mb-6">
+              The game you're looking for doesn't exist or couldn't be loaded.
+            </p>
+            <Button variant="outline" asChild>
+              <Link href="/games">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back to Games
+              </Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
       <Navigation />
@@ -149,39 +292,43 @@ export default function GameDetailPage() {
           {/* Game Cover */}
           <div className="md:col-span-1">
             <div className="aspect-[2/3] bg-card rounded-lg overflow-hidden border border-border">
-              <img src={game.image || "/placeholder.svg"} alt={game.title} className="w-full h-full object-cover" />
+              <img src={displayGame.image || "/placeholder.svg"} alt={displayGame.title} className="w-full h-full object-cover" />
             </div>
           </div>
 
           {/* Game Info */}
           <div className={isAuthenticated ? "lg:col-span-2" : "md:col-span-2"}>
             <div className="mb-6">
-              <h1 className="text-4xl font-playfair font-bold mb-2">{game.title}</h1>
+              <h1 className="text-4xl font-playfair font-bold mb-2">{displayGame.title}</h1>
               <p className="text-xl text-muted-foreground mb-4">
-                {game.year} • Directed by {game.developer}
+                {displayGame.year && `${displayGame.year} • `}Developed by {displayGame.developer}
               </p>
 
               {/* Rating and Stats */}
               <div className="flex flex-wrap items-center gap-6 mb-6">
                 <div className="flex items-center gap-2">
-                  {renderStars(game.rating, "w-5 h-5")}
-                  <span className="text-lg font-semibold">{game.rating}</span>
-                  <span className="text-muted-foreground">({game.totalRatings} ratings)</span>
+                  {renderStars(displayGame.rating, "w-5 h-5")}
+                  <span className="text-lg font-semibold">{displayGame.rating.toFixed(1)}</span>
+                  <span className="text-muted-foreground">({displayGame.totalRatings} ratings)</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Trophy className="w-5 h-5 text-secondary" />
-                  <span>Difficulty: {game.difficulty}/5</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Clock className="w-5 h-5" />
-                  <span>~{game.averageHours}h average</span>
-                </div>
+                {displayGame.metacritic && (
+                  <div className="flex items-center gap-2">
+                    <Trophy className="w-5 h-5 text-secondary" />
+                    <span>Metacritic: {displayGame.metacritic}</span>
+                  </div>
+                )}
+                {displayGame.averageHours > 0 && (
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-5 h-5" />
+                    <span>~{displayGame.averageHours}h average</span>
+                  </div>
+                )}
               </div>
 
               {/* Genres and Platforms */}
               <div className="mb-6">
                 <div className="flex flex-wrap gap-2 mb-3">
-                  {game.genre.map((g, index) => (
+                  {displayGame.genre.map((g, index) => (
                     <Badge key={index} variant="outline" className="bg-card">
                       {g}
                     </Badge>
@@ -189,7 +336,7 @@ export default function GameDetailPage() {
                 </div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Monitor className="w-4 h-4" />
-                  <span>{game.platforms.join(", ")}</span>
+                  <span>{displayGame.platforms.slice(0, 4).join(", ")}{displayGame.platforms.length > 4 ? '...' : ''}</span>
                 </div>
               </div>
 
@@ -199,14 +346,26 @@ export default function GameDetailPage() {
                   <>
                     <Dialog open={isReviewDialogOpen} onOpenChange={setIsReviewDialogOpen}>
                       <DialogTrigger asChild>
-                        <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
-                          <Star className="w-4 h-4 mr-2" />
-                          Rate & Review
+                        <Button 
+                          className="bg-primary text-primary-foreground hover:bg-primary/90"
+                          disabled={isUpdating}
+                        >
+                          {isUpdating ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Updating...
+                            </>
+                          ) : (
+                            <>
+                              <Star className="w-4 h-4 mr-2" />
+                              Rate & Review
+                            </>
+                          )}
                         </Button>
                       </DialogTrigger>
                   <DialogContent className="bg-card border-border max-w-2xl">
                     <DialogHeader>
-                      <DialogTitle>Rate & Review {game.title}</DialogTitle>
+                      <DialogTitle>Rate & Review {displayGame.title}</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-6">
                       <div>
@@ -263,12 +422,25 @@ export default function GameDetailPage() {
                         <Textarea
                           placeholder="Share your thoughts about this game..."
                           className="bg-background border-border min-h-[100px]"
+                          value={reviewText}
+                          onChange={(e) => setReviewText(e.target.value)}
                         />
                       </div>
 
                       <div className="flex gap-3">
-                        <Button className="bg-primary text-primary-foreground hover:bg-primary/90 flex-1">
-                          Save Review
+                        <Button 
+                          className="bg-primary text-primary-foreground hover:bg-primary/90 flex-1"
+                          onClick={handleReviewSubmit}
+                          disabled={isUpdating}
+                        >
+                          {isUpdating ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Saving...
+                            </>
+                          ) : (
+                            'Save Review'
+                          )}
                         </Button>
                         <Button variant="outline" onClick={() => setIsReviewDialogOpen(false)}>
                           Cancel
@@ -278,19 +450,34 @@ export default function GameDetailPage() {
                   </DialogContent>
                     </Dialog>
 
-                    <Button variant="outline" className="border-border hover:border-primary bg-transparent">
-                      <Heart className="w-4 h-4 mr-2" />
-                      Add to Wishlist
+                    <Button 
+                      variant="outline" 
+                      className="border-border hover:border-primary bg-transparent"
+                      onClick={() => handleUserGameUpdate({ is_favorite: !userGame?.is_favorite })}
+                      disabled={isUpdating}
+                    >
+                      <Heart className={`w-4 h-4 mr-2 ${userGame?.is_favorite ? 'fill-current' : ''}`} />
+                      {userGame?.is_favorite ? 'Remove from Wishlist' : 'Add to Wishlist'}
                     </Button>
 
-                    <Button variant="outline" className="border-border hover:border-primary bg-transparent">
+                    <Button 
+                      variant="outline" 
+                      className="border-border hover:border-primary bg-transparent"
+                      onClick={() => handleUserGameUpdate({ status: 'want_to_play' })}
+                      disabled={isUpdating}
+                    >
                       <Plus className="w-4 h-4 mr-2" />
-                      Add to List
+                      Add to Library
                     </Button>
 
-                    <Button variant="outline" className="border-border hover:border-primary bg-transparent">
+                    <Button 
+                      variant="outline" 
+                      className="border-border hover:border-primary bg-transparent"
+                      onClick={() => handleUserGameUpdate({ completed: true, status: 'completed' })}
+                      disabled={isUpdating}
+                    >
                       <Bookmark className="w-4 h-4 mr-2" />
-                      Mark as Played
+                      Mark as Completed
                     </Button>
 
                     <Button variant="outline" size="icon" className="border-border hover:border-primary bg-transparent">
@@ -321,7 +508,7 @@ export default function GameDetailPage() {
               </div>
 
               {/* Description */}
-              <p className="text-muted-foreground leading-relaxed">{game.description}</p>
+              <p className="text-muted-foreground leading-relaxed">{displayGame.description}</p>
             </div>
           </div>
 
@@ -347,7 +534,12 @@ export default function GameDetailPage() {
                     </Avatar>
                     <div>
                       <div className="font-medium text-sm">{displayName || username}</div>
-                      <Badge variant="outline" className="text-xs">Want to Play</Badge>
+                      <Badge variant="outline" className="text-xs">
+                        {userGame?.status ? 
+                          userGame.status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : 
+                          'Not in Library'
+                        }
+                      </Badge>
                     </div>
                   </div>
                   
@@ -356,16 +548,20 @@ export default function GameDetailPage() {
                       <span className="text-muted-foreground">My Rating</span>
                       <div className="flex items-center gap-1">
                         <Star className="w-3 h-3 fill-primary text-primary" />
-                        <span>Not rated</span>
+                        <span>{userGame?.user_rating ? `${userGame.user_rating}/5` : 'Not rated'}</span>
                       </div>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Hours Played</span>
-                      <span>0h</span>
+                      <span>{userGame?.hours_played || 0}h</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Progress</span>
-                      <Badge variant="outline" className="text-xs">Not Started</Badge>
+                      <Badge variant="outline" className="text-xs">
+                        {userGame?.completed ? 'Completed' : 
+                         userGame?.status === 'playing' ? 'In Progress' :
+                         userGame?.status ? 'Not Started' : 'Not in Library'}
+                      </Badge>
                     </div>
                   </div>
                 </CardContent>
@@ -512,19 +708,19 @@ export default function GameDetailPage() {
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Release Date:</span>
-                        <span>{game.releaseDate}</span>
+                        <span>{displayGame.releaseDate}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Developer:</span>
-                        <span>{game.developer}</span>
+                        <span>{displayGame.developer}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Publisher:</span>
-                        <span>{game.publisher}</span>
+                        <span>{displayGame.publisher}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">ESRB Rating:</span>
-                        <span>{game.esrbRating}</span>
+                        <span>{displayGame.esrbRating}</span>
                       </div>
                     </div>
                   </div>
@@ -534,7 +730,7 @@ export default function GameDetailPage() {
                   <div>
                     <h3 className="font-semibold mb-2">Platforms</h3>
                     <div className="flex flex-wrap gap-2">
-                      {game.platforms.map((platform, index) => (
+                      {displayGame.platforms.map((platform, index) => (
                         <Badge key={index} variant="outline" className="bg-background">
                           {platform}
                         </Badge>
@@ -545,7 +741,7 @@ export default function GameDetailPage() {
                   <div>
                     <h3 className="font-semibold mb-2">Tags</h3>
                     <div className="flex flex-wrap gap-2">
-                      {game.tags.map((tag, index) => (
+                      {displayGame.tags.map((tag, index) => (
                         <Badge key={index} variant="secondary" className="bg-secondary/20 text-secondary-foreground">
                           {tag}
                         </Badge>

@@ -7,7 +7,10 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { AuthLoadingSkeleton } from "@/components/auth"
 import { useAuth } from "@/hooks/use-auth"
+import { useTrendingGames } from "@/hooks/use-trending-games"
 import { SocialActivityFeed } from "@/components/profile/social-activity-feed"
+import { Skeleton } from "@/components/ui/skeleton"
+import { formatGameRating, formatRatingsCount, getPrimaryGenre, getGameImageUrl } from "@/lib/utils/game-utils"
 import { 
   Star, 
   Clock, 
@@ -39,6 +42,16 @@ export default function HomePage() {
     gamingPreferences,
     privacyLevel
   } = useAuth()
+
+  // Fetch trending games data
+  const {
+    featuredGames,
+    trendingGames,
+    popularGames,
+    loading: gamesLoading,
+    error: gamesError,
+    refetch: refetchGames
+  } = useTrendingGames()
 
   // Show loading skeleton while auth is loading
   if (isLoading) {
@@ -172,7 +185,7 @@ export default function HomePage() {
                         <div>
                           <h4 className="font-medium mb-2">Favorite Genres</h4>
                           <div className="flex flex-wrap gap-2">
-                            {gamingPreferences.favorite_genres.map((genre) => (
+                            {gamingPreferences.favorite_genres.map((genre: string) => (
                               <Badge key={genre} variant="secondary">
                                 {genre}
                               </Badge>
@@ -185,7 +198,7 @@ export default function HomePage() {
                         <div>
                           <h4 className="font-medium mb-2">Platforms</h4>
                           <div className="flex flex-wrap gap-2">
-                            {gamingPreferences.platforms.map((platform) => (
+                            {gamingPreferences.platforms.map((platform: string) => (
                               <Badge key={platform} variant="outline">
                                 {platform}
                               </Badge>
@@ -284,19 +297,45 @@ export default function HomePage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {[
-                      { title: "Baldur's Gate 3", rating: 4.5 },
-                      { title: "Spider-Man 2", rating: 4.2 },
-                      { title: "Alan Wake 2", rating: 4.3 },
-                    ].map((game, index) => (
-                      <div key={index} className="flex items-center justify-between text-sm">
-                        <span className="font-medium">{game.title}</span>
-                        <div className="flex items-center gap-1">
-                          <Star className="w-3 h-3 fill-primary text-primary" />
-                          <span className="text-muted-foreground">{game.rating}</span>
+                    {gamesLoading ? (
+                      // Loading skeletons
+                      Array.from({ length: 3 }).map((_, index) => (
+                        <div key={index} className="flex items-center justify-between">
+                          <Skeleton className="h-4 w-24" />
+                          <Skeleton className="h-4 w-12" />
                         </div>
+                      ))
+                    ) : gamesError ? (
+                      <div className="text-center text-sm text-muted-foreground">
+                        <p>Unable to load trending games</p>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={refetchGames}
+                          className="mt-2"
+                        >
+                          Try Again
+                        </Button>
                       </div>
-                    ))}
+                    ) : trendingGames.length > 0 ? (
+                      trendingGames.map((game) => (
+                        <Link key={game.id} href={`/games/${game.id}`}>
+                          <div className="flex items-center justify-between text-sm hover:bg-muted/50 p-1 rounded transition-colors cursor-pointer">
+                            <span className="font-medium truncate">{game.name}</span>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <Star className="w-3 h-3 fill-primary text-primary" />
+                              <span className="text-muted-foreground">
+                                {formatGameRating(game.rating)}
+                              </span>
+                            </div>
+                          </div>
+                        </Link>
+                      ))
+                    ) : (
+                      <div className="text-center text-sm text-muted-foreground">
+                        No trending games available
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -308,24 +347,37 @@ export default function HomePage() {
       {/* Featured Games Grid */}
       <section className="max-w-6xl mx-auto px-4 py-12">
         <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-12">
-          {[
-            { title: "Elden Ring", image: "/generic-fantasy-game-cover.png" },
-            { title: "The Last of Us Part II", image: "/the-last-of-us-part-2-game-cover.jpg" },
-            { title: "Hades", image: "/hades-game-cover.png" },
-            { title: "Cyberpunk 2077", image: "/cyberpunk-2077-inspired-cover.png" },
-            { title: "Ghost of Tsushima", image: "/ghost-of-tsushima-game-cover.jpg" },
-            { title: "Baldur's Gate 3", image: "/baldurs-gate-3-inspired-cover.png" },
-          ].map((game, index) => (
-            <div key={index} className="group cursor-pointer">
-              <div className="aspect-[2/3] bg-card rounded-lg overflow-hidden mb-2 border border-border group-hover:border-primary transition-colors">
-                <img
-                  src={game.image || "/placeholder.svg"}
-                  alt={game.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
+          {gamesLoading ? (
+            // Loading skeletons
+            Array.from({ length: 6 }).map((_, index) => (
+              <div key={index} className="group">
+                <Skeleton className="aspect-[2/3] w-full rounded-lg mb-2" />
               </div>
-            </div>
-          ))}
+            ))
+          ) : featuredGames.length > 0 ? (
+            featuredGames.map((game) => (
+              <Link key={game.id} href={`/games/${game.id}`}>
+                <div className="group cursor-pointer">
+                  <div className="aspect-[2/3] bg-card rounded-lg overflow-hidden mb-2 border border-border group-hover:border-primary transition-colors">
+                    <img
+                      src={getGameImageUrl(game)}
+                      alt={game.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                  </div>
+                </div>
+              </Link>
+            ))
+          ) : (
+            // Show placeholder if no games available
+            Array.from({ length: 6 }).map((_, index) => (
+              <div key={index} className="group">
+                <div className="aspect-[2/3] bg-muted rounded-lg mb-2 border border-border flex items-center justify-center">
+                  <span className="text-muted-foreground text-sm">No Image</span>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </section>
 
@@ -413,74 +465,86 @@ export default function HomePage() {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-          {[
-            {
-              title: "Baldur's Gate 3",
-              image: "/baldurs-gate-3-inspired-cover.png",
-              rating: 4.5,
-              reviews: "2.1K",
-              likes: "15K",
-            },
-            {
-              title: "Spider-Man 2",
-              image: "/spider-man-2-game-cover.jpg",
-              rating: 4.2,
-              reviews: "1.8K",
-              likes: "12K",
-            },
-            {
-              title: "Alan Wake 2",
-              image: "/alan-wake-2-game-cover.jpg",
-              rating: 4.3,
-              reviews: "956",
-              likes: "8.2K",
-            },
-            {
-              title: "Super Mario Bros. Wonder",
-              image: "/super-mario-bros-wonder-game-cover.jpg",
-              rating: 4.4,
-              reviews: "1.2K",
-              likes: "9.8K",
-            },
-          ].map((game, index) => (
-            <Card
-              key={index}
-              className="group cursor-pointer bg-card border-border hover:border-primary transition-colors"
-            >
-              <div className="aspect-[2/3] bg-muted rounded-t-lg overflow-hidden">
-                <img
-                  src={game.image || "/placeholder.svg"}
-                  alt={game.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-              </div>
-              <div className="p-3">
-                <h3 className="font-semibold text-sm mb-2 line-clamp-2">{game.title}</h3>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-                  <div className="flex items-center gap-1">
-                    <Star className="w-3 h-3 fill-primary text-primary" />
-                    <span>{game.rating}</span>
-                  </div>
-                  <span>•</span>
-                  <span>{game.reviews} reviews</span>
-                  <span>•</span>
-                  <span>{game.likes} likes</span>
+          {gamesLoading ? (
+            // Loading skeletons
+            Array.from({ length: 4 }).map((_, index) => (
+              <Card key={index} className="bg-card border-border">
+                <Skeleton className="aspect-[2/3] w-full rounded-t-lg" />
+                <div className="p-3 space-y-2">
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-3 w-full" />
+                  {isAuthenticated && (
+                    <div className="flex items-center justify-between pt-2">
+                      <Skeleton className="h-4 w-16" />
+                      <Skeleton className="h-4 w-4" />
+                    </div>
+                  )}
                 </div>
-                
-                {/* Personalized info for authenticated users */}
-                {isAuthenticated && (
-                  <div className="flex items-center justify-between">
-                    <Badge variant="outline" className="text-xs">
-                      Want to Play
-                    </Badge>
-                    <Button variant="ghost" size="sm" className="h-6 px-2 text-xs">
-                      <Plus className="w-3 h-3" />
-                    </Button>
+              </Card>
+            ))
+          ) : gamesError ? (
+            <div className="col-span-full text-center py-8">
+              <p className="text-muted-foreground mb-4">Unable to load games</p>
+              <Button variant="outline" onClick={refetchGames}>
+                Try Again
+              </Button>
+            </div>
+          ) : popularGames.length > 0 ? (
+            popularGames.map((game) => (
+              <Link key={game.id} href={`/games/${game.id}`}>
+                <Card className="group cursor-pointer bg-card border-border hover:border-primary transition-colors h-full">
+                  <div className="aspect-[2/3] bg-muted rounded-t-lg overflow-hidden">
+                    <img
+                      src={getGameImageUrl(game)}
+                      alt={game.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
                   </div>
-                )}
-              </div>
-            </Card>
-          ))}
+                  <div className="p-3">
+                    <h3 className="font-semibold text-sm mb-2 line-clamp-2">{game.name}</h3>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                      <div className="flex items-center gap-1">
+                        <Star className="w-3 h-3 fill-primary text-primary" />
+                        <span>{formatGameRating(game.rating)}</span>
+                      </div>
+                      <span>•</span>
+                      <span>{formatRatingsCount(game.ratings_count)} ratings</span>
+                      {game.metacritic && (
+                        <>
+                          <span>•</span>
+                          <span>Meta {game.metacritic}</span>
+                        </>
+                      )}
+                    </div>
+                    
+                    {/* Personalized info for authenticated users */}
+                    {isAuthenticated && (
+                      <div className="flex items-center justify-between">
+                        <Badge variant="outline" className="text-xs">
+                          {getPrimaryGenre(game)}
+                        </Badge>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-6 px-2 text-xs"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            // Handle add to library action
+                          }}
+                        >
+                          <Plus className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              </Link>
+            ))
+          ) : (
+            <div className="col-span-full text-center py-8">
+              <p className="text-muted-foreground">No popular games available</p>
+            </div>
+          )}
         </div>
       </section>
 

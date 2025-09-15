@@ -27,6 +27,46 @@ export interface GamingPreferences {
   lookingFor?: ('friends' | 'teammates' | 'mentorship' | 'casual_play')[]
 }
 
+// Game types
+export interface Game {
+  id: number
+  slug: string
+  name: string
+  description: string | null
+  released: string | null
+  background_image: string | null
+  rating: number | null
+  rating_top: number | null
+  ratings_count: number | null
+  metacritic: number | null
+  playtime: number | null
+  genres: Array<{id: number, name: string}> | null
+  platforms: Array<{platform: {id: number, name: string}}> | null
+  developers: Array<{id: number, name: string}> | null
+  publishers: Array<{id: number, name: string}> | null
+  esrb_rating: {id: number, name: string} | null
+  tags: Array<{id: number, name: string}> | null
+  created_at: Timestamp
+  updated_at: Timestamp
+}
+
+// User game types
+export interface UserGame {
+  id: UUID
+  user_id: UUID
+  game_id: number
+  status: 'want_to_play' | 'playing' | 'completed' | 'dropped' | 'on_hold'
+  user_rating: number | null
+  difficulty_rating: number | null
+  hours_played: number
+  completed: boolean
+  review: string | null
+  is_favorite: boolean
+  added_at: Timestamp
+  updated_at: Timestamp
+  game?: Game // populated via join
+}
+
 // User profile from the profiles table
 export interface Profile {
   id: UUID
