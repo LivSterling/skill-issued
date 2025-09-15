@@ -4,11 +4,30 @@ import { useState, useEffect } from "react"
 import { Navigation } from "@/components/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Search, Star, ChevronRight, User, ListIcon, Clock, Trophy, Heart, MessageSquare } from "lucide-react"
+import { useAuth } from "@/hooks/use-auth"
+import { 
+  Search, 
+  Star, 
+  ChevronRight, 
+  User, 
+  ListIcon, 
+  Clock, 
+  Trophy, 
+  Heart, 
+  MessageSquare, 
+  Plus,
+  Eye,
+  Gamepad2,
+  TrendingUp,
+  UserPlus,
+  Filter,
+  History
+} from "lucide-react"
+import Link from "next/link"
 
 export default function SearchPage() {
   const [searchQuery, setSearchQuery] = useState("")
@@ -19,6 +38,16 @@ export default function SearchPage() {
     lists: [],
   })
   const [isSearching, setIsSearching] = useState(false)
+  
+  const { 
+    isAuthenticated, 
+    user, 
+    userProfile, 
+    displayName, 
+    username, 
+    avatarUrl,
+    gamingPreferences 
+  } = useAuth()
 
   const browseCategories = [
     { name: "Release date", href: "/games?sort=date" },
@@ -217,12 +246,57 @@ export default function SearchPage() {
 
       <div className="max-w-4xl mx-auto px-4 py-8">
         {/* Search Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-playfair font-bold mb-4">Search</h1>
+        <div className="mb-8">
+          {isAuthenticated ? (
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-4">
+                <Avatar className="h-12 w-12">
+                  <AvatarImage src={avatarUrl || undefined} alt={displayName || username || 'User'} />
+                  <AvatarFallback>
+                    {displayName ? displayName.charAt(0).toUpperCase() : 
+                     username ? username.charAt(0).toUpperCase() : 'U'}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <h1 className="text-3xl font-playfair font-bold">
+                    Discover & Connect
+                  </h1>
+                  <p className="text-muted-foreground">
+                    Find games, friends, and communities tailored to your interests
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Button variant="outline" size="sm" asChild>
+                  <Link href="/friends">
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Find Friends
+                  </Link>
+                </Button>
+                <Button size="sm" asChild>
+                  <Link href="/games">
+                    <Gamepad2 className="h-4 w-4 mr-2" />
+                    Browse Games
+                  </Link>
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center mb-6">
+              <h1 className="text-3xl font-playfair font-bold mb-4">Search</h1>
+              <p className="text-muted-foreground">
+                Discover games, connect with players, and explore gaming communities
+              </p>
+            </div>
+          )}
+          
           <div className="relative max-w-2xl mx-auto">
             <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
             <Input
-              placeholder="Find games, cast + crew, members, reviews..."
+              placeholder={isAuthenticated ? 
+                "Search games, friends, reviews, lists..." : 
+                "Find games, cast + crew, members, reviews..."
+              }
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-12 h-12 text-lg bg-card border-border focus:border-primary"
@@ -285,12 +359,35 @@ export default function SearchPage() {
                                 </div>
                               </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              {game.genre.map((g: string, index: number) => (
-                                <Badge key={index} variant="outline" className="text-xs">
-                                  {g}
-                                </Badge>
-                              ))}
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                {game.genre.map((g: string, index: number) => (
+                                  <Badge key={index} variant="outline" className="text-xs">
+                                    {g}
+                                  </Badge>
+                                ))}
+                                
+                                {/* User status badge for authenticated users */}
+                                {isAuthenticated && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    Want to Play
+                                  </Badge>
+                                )}
+                              </div>
+                              
+                              {/* User actions for authenticated users */}
+                              {isAuthenticated && (
+                                <div className="flex items-center gap-2">
+                                  <Button variant="outline" size="sm" className="h-8">
+                                    <Heart className="w-4 h-4 mr-1" />
+                                    Wishlist
+                                  </Button>
+                                  <Button variant="outline" size="sm" className="h-8">
+                                    <Plus className="w-4 h-4 mr-1" />
+                                    Add to List
+                                  </Button>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -326,13 +423,36 @@ export default function SearchPage() {
                           <div className="flex-1">
                             <div className="flex items-center justify-between mb-1">
                               <h3 className="font-semibold">{person.name}</h3>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="border-border hover:border-primary bg-transparent"
-                              >
-                                Follow
-                              </Button>
+                              {isAuthenticated ? (
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="border-border hover:border-primary bg-transparent"
+                                  >
+                                    <UserPlus className="w-4 h-4 mr-1" />
+                                    Follow
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    className="bg-primary text-primary-foreground hover:bg-primary/90"
+                                  >
+                                    <Plus className="w-4 h-4 mr-1" />
+                                    Add Friend
+                                  </Button>
+                                </div>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-border hover:border-primary bg-transparent"
+                                  asChild
+                                >
+                                  <Link href="/auth">
+                                    Sign in to Follow
+                                  </Link>
+                                </Button>
+                              )}
                             </div>
                             <p className="text-sm text-muted-foreground mb-2">@{person.username}</p>
                             <p className="text-sm text-foreground mb-2">{person.bio}</p>
@@ -465,25 +585,233 @@ export default function SearchPage() {
           </div>
         ) : (
           <>
-            {/* Browse Categories */}
-            <div className="mb-12">
-              <h2 className="text-xl font-semibold mb-6">Browse by</h2>
-              <div className="space-y-1">
-                {browseCategories.map((category, index) => (
-                  <Button
-                    key={index}
-                    variant="ghost"
-                    className="w-full justify-between h-12 text-left px-0 hover:bg-transparent hover:text-primary"
-                    asChild
-                  >
-                    <a href={category.href}>
-                      <span>{category.name}</span>
-                      <ChevronRight className="w-4 h-4" />
-                    </a>
-                  </Button>
-                ))}
+            {/* Personalized Content for Authenticated Users */}
+            {isAuthenticated ? (
+              <div className="grid lg:grid-cols-3 gap-6 mb-12">
+                {/* Main Content */}
+                <div className="lg:col-span-2 space-y-8">
+                  {/* Gaming Preferences Search */}
+                  {gamingPreferences && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Gamepad2 className="h-5 w-5" />
+                          Discover Games for You
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          <div>
+                            <p className="text-sm text-muted-foreground mb-3">
+                              Based on your favorite genres and platforms
+                            </p>
+                            <div className="flex flex-wrap gap-2 mb-4">
+                              {gamingPreferences.favorite_genres?.slice(0, 4).map((genre) => (
+                                <Button
+                                  key={genre}
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setSearchQuery(genre)}
+                                  className="text-xs"
+                                >
+                                  <Filter className="w-3 h-3 mr-1" />
+                                  {genre}
+                                </Button>
+                              ))}
+                              {gamingPreferences.platforms?.slice(0, 3).map((platform) => (
+                                <Button
+                                  key={platform}
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setSearchQuery(platform)}
+                                  className="text-xs"
+                                >
+                                  <Filter className="w-3 h-3 mr-1" />
+                                  {platform}
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-muted-foreground">
+                              Playtime preference: {gamingPreferences.playtime_preference || 'Not set'}
+                            </span>
+                            <Button variant="ghost" size="sm" asChild>
+                              <Link href="/profile/edit">
+                                Update Preferences
+                              </Link>
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Quick Search Categories */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Quick Search</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 gap-3">
+                        {[
+                          { name: "Friends' Reviews", query: "friends reviews", icon: Heart },
+                          { name: "Trending Games", query: "trending", icon: TrendingUp },
+                          { name: "New Releases", query: "2024", icon: Star },
+                          { name: "Indie Games", query: "indie", icon: Gamepad2 },
+                        ].map((item, index) => (
+                          <Button
+                            key={index}
+                            variant="outline"
+                            className="h-auto p-4 flex flex-col items-center gap-2"
+                            onClick={() => setSearchQuery(item.query)}
+                          >
+                            <item.icon className="w-5 h-5 text-primary" />
+                            <span className="text-sm text-center">{item.name}</span>
+                          </Button>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Browse Categories */}
+                  <div>
+                    <h2 className="text-xl font-semibold mb-4">Browse by Category</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {browseCategories.slice(0, 6).map((category, index) => (
+                        <Button
+                          key={index}
+                          variant="ghost"
+                          className="justify-between h-10 text-left px-3 hover:bg-card hover:text-primary"
+                          asChild
+                        >
+                          <a href={category.href}>
+                            <span className="text-sm">{category.name}</span>
+                            <ChevronRight className="w-3 h-3" />
+                          </a>
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sidebar */}
+                <div className="space-y-6">
+                  {/* Recent Searches */}
+                  {recentSearches.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <History className="h-4 w-4" />
+                          Recent Searches
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-2">
+                          {recentSearches.slice(0, 4).map((search, index) => (
+                            <Button
+                              key={index}
+                              variant="ghost"
+                              size="sm"
+                              className="w-full justify-start text-left"
+                              onClick={() => setSearchQuery(search)}
+                            >
+                              <Search className="w-3 h-3 mr-2" />
+                              {search}
+                            </Button>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Trending This Week */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <TrendingUp className="h-4 w-4" />
+                        Trending This Week
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {trendingGames.map((game, index) => (
+                          <div key={index} className="flex items-center gap-3 cursor-pointer group">
+                            <div className="w-10 h-12 bg-muted rounded overflow-hidden flex-shrink-0">
+                              <img
+                                src={game.image || "/placeholder.svg"}
+                                alt={game.title}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-medium text-sm line-clamp-1">{game.title}</h4>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <span>{game.year}</span>
+                                <div className="flex items-center gap-1">
+                                  <Star className="w-3 h-3 fill-primary text-primary" />
+                                  <span>{game.rating}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Quick Actions */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Quick Actions</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <Button variant="outline" className="w-full justify-start" size="sm" asChild>
+                        <Link href="/friends">
+                          <UserPlus className="h-4 w-4 mr-2" />
+                          Find Friends
+                        </Link>
+                      </Button>
+                      <Button variant="outline" className="w-full justify-start" size="sm" asChild>
+                        <Link href="/games">
+                          <Eye className="h-4 w-4 mr-2" />
+                          Browse All Games
+                        </Link>
+                      </Button>
+                      <Button variant="outline" className="w-full justify-start" size="sm" asChild>
+                        <Link href="/activity">
+                          <Heart className="h-4 w-4 mr-2" />
+                          View Activity Feed
+                        </Link>
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
-            </div>
+            ) : (
+              <>
+                {/* Browse Categories for Non-Authenticated Users */}
+                <div className="mb-12">
+                  <h2 className="text-xl font-semibold mb-6">Browse by</h2>
+                  <div className="space-y-1">
+                    {browseCategories.map((category, index) => (
+                      <Button
+                        key={index}
+                        variant="ghost"
+                        className="w-full justify-between h-12 text-left px-0 hover:bg-transparent hover:text-primary"
+                        asChild
+                      >
+                        <a href={category.href}>
+                          <span>{category.name}</span>
+                          <ChevronRight className="w-4 h-4" />
+                        </a>
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
 
             {/* Skill Issued.com Section */}
             <div className="mb-12">

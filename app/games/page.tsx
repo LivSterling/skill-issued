@@ -3,13 +3,40 @@
 import { useState } from "react"
 import { Navigation } from "@/components/navigation"
 import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Star, Clock, Trophy, Filter, Grid, List, ChevronRight } from "lucide-react"
+import { useAuth } from "@/hooks/use-auth"
+import { 
+  Star, 
+  Clock, 
+  Trophy, 
+  Filter, 
+  Grid, 
+  List, 
+  ChevronRight, 
+  Plus, 
+  Heart, 
+  Check, 
+  Eye, 
+  User,
+  Gamepad2,
+  TrendingUp
+} from "lucide-react"
+import Link from "next/link"
 
 export default function GamesPage() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
+  const { 
+    isAuthenticated, 
+    user, 
+    userProfile, 
+    displayName, 
+    username, 
+    avatarUrl,
+    gamingPreferences 
+  } = useAuth()
 
   const games = [
     {
@@ -264,26 +291,197 @@ export default function GamesPage() {
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-playfair font-bold mb-4">Browse Games</h1>
-          <p className="text-muted-foreground">Discover your next favorite game from our extensive library</p>
+          {isAuthenticated ? (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <Avatar className="h-12 w-12">
+                  <AvatarImage src={avatarUrl || undefined} alt={displayName || username || 'User'} />
+                  <AvatarFallback>
+                    {displayName ? displayName.charAt(0).toUpperCase() : 
+                     username ? username.charAt(0).toUpperCase() : 'U'}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <h1 className="text-3xl font-playfair font-bold">
+                    {displayName || username}'s Game Library
+                  </h1>
+                  <p className="text-muted-foreground">
+                    Discover games tailored to your preferences
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Button size="sm" asChild>
+                  <Link href="/profile">
+                    <User className="h-4 w-4 mr-2" />
+                    My Profile
+                  </Link>
+                </Button>
+                <Button variant="outline" size="sm">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Game
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <h1 className="text-3xl font-playfair font-bold mb-4">Browse Games</h1>
+              <p className="text-muted-foreground">Discover your next favorite game from our extensive library</p>
+            </div>
+          )}
         </div>
 
-        {/* Browse Categories */}
-        <div className="mb-8">
-          <h2 className="text-xl font-semibold mb-4">Browse by</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {browseCategories.map((category, index) => (
-              <Button
-                key={index}
-                variant="outline"
-                className="h-auto p-4 flex flex-col items-center gap-2 bg-card border-border hover:border-primary transition-colors"
-              >
-                <category.icon className="w-6 h-6 text-primary" />
-                <span className="text-sm text-center">{category.name}</span>
-              </Button>
-            ))}
+        {/* Personalized Dashboard for Authenticated Users */}
+        {isAuthenticated && (
+          <div className="grid lg:grid-cols-4 gap-6 mb-8">
+            {/* Main Content */}
+            <div className="lg:col-span-3">
+              {/* Gaming Preferences */}
+              {gamingPreferences && (
+                <Card className="mb-6">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Gamepad2 className="h-5 w-5" />
+                      Recommended Based on Your Preferences
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {gamingPreferences.favorite_genres?.slice(0, 4).map((genre) => (
+                        <Badge key={genre} variant="secondary" className="text-xs">
+                          {genre}
+                        </Badge>
+                      ))}
+                      {gamingPreferences.platforms?.slice(0, 3).map((platform) => (
+                        <Badge key={platform} variant="outline" className="text-xs">
+                          {platform}
+                        </Badge>
+                      ))}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Games filtered by your favorite genres and platforms
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Browse Categories */}
+              <div>
+                <h2 className="text-xl font-semibold mb-4">Browse by</h2>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {browseCategories.map((category, index) => (
+                    <Button
+                      key={index}
+                      variant="outline"
+                      className="h-auto p-4 flex flex-col items-center gap-2 bg-card border-border hover:border-primary transition-colors"
+                    >
+                      <category.icon className="w-6 h-6 text-primary" />
+                      <span className="text-sm text-center">{category.name}</span>
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Sidebar */}
+            <div className="space-y-6">
+              {/* My Game Stats */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">My Game Stats</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Games Played</span>
+                    <Badge variant="outline">0</Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Want to Play</span>
+                    <Badge variant="outline">0</Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Completed</span>
+                    <Badge variant="outline">0</Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Reviews Written</span>
+                    <Badge variant="outline">0</Badge>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Quick Actions */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Quick Actions</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Button variant="outline" className="w-full justify-start" size="sm">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add New Game
+                  </Button>
+                  <Button variant="outline" className="w-full justify-start" size="sm">
+                    <Heart className="h-4 w-4 mr-2" />
+                    My Wishlist
+                  </Button>
+                  <Button variant="outline" className="w-full justify-start" size="sm">
+                    <Eye className="h-4 w-4 mr-2" />
+                    Recently Viewed
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Trending in Your Genres */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4" />
+                    Trending in Your Genres
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {[
+                      { title: "Baldur's Gate 3", genre: "RPG", rating: 4.8 },
+                      { title: "Elden Ring", genre: "Action RPG", rating: 4.7 },
+                      { title: "Hades", genre: "Roguelike", rating: 4.6 },
+                    ].map((game, index) => (
+                      <div key={index} className="flex items-center justify-between text-sm">
+                        <div>
+                          <div className="font-medium">{game.title}</div>
+                          <div className="text-xs text-muted-foreground">{game.genre}</div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Star className="w-3 h-3 fill-primary text-primary" />
+                          <span className="text-muted-foreground">{game.rating}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Browse Categories for Non-Authenticated Users */}
+        {!isAuthenticated && (
+          <div className="mb-8">
+            <h2 className="text-xl font-semibold mb-4">Browse by</h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              {browseCategories.map((category, index) => (
+                <Button
+                  key={index}
+                  variant="outline"
+                  className="h-auto p-4 flex flex-col items-center gap-2 bg-card border-border hover:border-primary transition-colors"
+                >
+                  <category.icon className="w-6 h-6 text-primary" />
+                  <span className="text-sm text-center">{category.name}</span>
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Filters and View Toggle */}
         <div className="flex flex-col md:flex-row gap-4 mb-6">
@@ -385,10 +583,33 @@ export default function GamesPage() {
                       <span>{game.difficulty}/5</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Clock className="w-3 h-3" />
-                    <span>~{game.hours}h</span>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      <span>~{game.hours}h</span>
+                    </div>
+                    
+                    {/* User-specific actions for authenticated users */}
+                    {isAuthenticated && (
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                          <Heart className="w-3 h-3" />
+                        </Button>
+                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                          <Plus className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
+                  
+                  {/* User status badge for authenticated users */}
+                  {isAuthenticated && (
+                    <div className="mt-2">
+                      <Badge variant="outline" className="text-xs">
+                        Want to Play
+                      </Badge>
+                    </div>
+                  )}
                 </div>
               </Card>
             ))}
@@ -432,13 +653,40 @@ export default function GamesPage() {
                       </div>
                     </div>
                     <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{game.description}</p>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="text-xs">
-                        {game.genre}
-                      </Badge>
-                      <Badge variant="outline" className="text-xs">
-                        {game.platform}
-                      </Badge>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">
+                          {game.genre}
+                        </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          {game.platform}
+                        </Badge>
+                        
+                        {/* User status badge for authenticated users */}
+                        {isAuthenticated && (
+                          <Badge variant="secondary" className="text-xs">
+                            Want to Play
+                          </Badge>
+                        )}
+                      </div>
+                      
+                      {/* User actions for authenticated users */}
+                      {isAuthenticated && (
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" className="h-8">
+                            <Heart className="w-4 h-4 mr-1" />
+                            Wishlist
+                          </Button>
+                          <Button variant="outline" size="sm" className="h-8">
+                            <Plus className="w-4 h-4 mr-1" />
+                            Add to List
+                          </Button>
+                          <Button size="sm" className="h-8">
+                            <Check className="w-4 h-4 mr-1" />
+                            Played
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

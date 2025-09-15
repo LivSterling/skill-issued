@@ -6,8 +6,10 @@ import { Playfair_Display } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { Suspense } from "react"
 import { AuthProviderWrapper } from "@/components/auth/auth-provider"
+import { AuthStateProvider } from "@/components/auth/auth-state-provider"
 import { ProfileProviderWrapper } from "@/components/profile/profile-provider"
 import { CacheMonitor } from "@/components/debug/cache-monitor"
+import { Toaster } from "@/components/ui/sonner"
 import "./globals.css"
 
 const playfair = Playfair_Display({
@@ -32,13 +34,16 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable} ${playfair.variable}`}>
         <AuthProviderWrapper>
-          <ProfileProviderWrapper>
-            <Suspense fallback={null}>{children}</Suspense>
-            {process.env.NODE_ENV === 'development' && (
-              <CacheMonitor showRealtime={true} />
-            )}
-          </ProfileProviderWrapper>
+          <AuthStateProvider>
+            <ProfileProviderWrapper>
+              <Suspense fallback={null}>{children}</Suspense>
+              {process.env.NODE_ENV === 'development' && (
+                <CacheMonitor showRealtime={true} />
+              )}
+            </ProfileProviderWrapper>
+          </AuthStateProvider>
         </AuthProviderWrapper>
+        <Toaster />
         <Analytics />
       </body>
     </html>

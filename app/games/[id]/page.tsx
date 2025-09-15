@@ -3,8 +3,9 @@
 import { useState } from "react"
 import { Navigation } from "@/components/navigation"
 import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
@@ -12,7 +13,24 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
-import { Star, Clock, Trophy, Heart, MessageSquare, Share, Plus, Monitor, CheckCircle, XCircle } from "lucide-react"
+import { useAuth } from "@/hooks/use-auth"
+import { 
+  Star, 
+  Clock, 
+  Trophy, 
+  Heart, 
+  MessageSquare, 
+  Share, 
+  Plus, 
+  Monitor, 
+  CheckCircle, 
+  XCircle, 
+  User,
+  Edit,
+  Bookmark,
+  Flag
+} from "lucide-react"
+import Link from "next/link"
 
 export default function GameDetailPage() {
   const [userRating, setUserRating] = useState([0])
@@ -20,6 +38,15 @@ export default function GameDetailPage() {
   const [hoursPlayed, setHoursPlayed] = useState("")
   const [completed, setCompleted] = useState(false)
   const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false)
+  
+  const { 
+    isAuthenticated, 
+    user, 
+    userProfile, 
+    displayName, 
+    username, 
+    avatarUrl 
+  } = useAuth()
 
   // Mock game data
   const game = {
@@ -118,7 +145,7 @@ export default function GameDetailPage() {
 
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Game Header */}
-        <div className="grid md:grid-cols-3 gap-8 mb-12">
+        <div className={`grid ${isAuthenticated ? 'lg:grid-cols-4' : 'md:grid-cols-3'} gap-8 mb-12`}>
           {/* Game Cover */}
           <div className="md:col-span-1">
             <div className="aspect-[2/3] bg-card rounded-lg overflow-hidden border border-border">
@@ -127,7 +154,7 @@ export default function GameDetailPage() {
           </div>
 
           {/* Game Info */}
-          <div className="md:col-span-2">
+          <div className={isAuthenticated ? "lg:col-span-2" : "md:col-span-2"}>
             <div className="mb-6">
               <h1 className="text-4xl font-playfair font-bold mb-2">{game.title}</h1>
               <p className="text-xl text-muted-foreground mb-4">
@@ -168,13 +195,15 @@ export default function GameDetailPage() {
 
               {/* Action Buttons */}
               <div className="flex flex-wrap gap-3 mb-6">
-                <Dialog open={isReviewDialogOpen} onOpenChange={setIsReviewDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
-                      <Star className="w-4 h-4 mr-2" />
-                      Rate & Review
-                    </Button>
-                  </DialogTrigger>
+                {isAuthenticated ? (
+                  <>
+                    <Dialog open={isReviewDialogOpen} onOpenChange={setIsReviewDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
+                          <Star className="w-4 h-4 mr-2" />
+                          Rate & Review
+                        </Button>
+                      </DialogTrigger>
                   <DialogContent className="bg-card border-border max-w-2xl">
                     <DialogHeader>
                       <DialogTitle>Rate & Review {game.title}</DialogTitle>
@@ -247,27 +276,159 @@ export default function GameDetailPage() {
                       </div>
                     </div>
                   </DialogContent>
-                </Dialog>
+                    </Dialog>
 
-                <Button variant="outline" className="border-border hover:border-primary bg-transparent">
-                  <Heart className="w-4 h-4 mr-2" />
-                  Add to Wishlist
-                </Button>
+                    <Button variant="outline" className="border-border hover:border-primary bg-transparent">
+                      <Heart className="w-4 h-4 mr-2" />
+                      Add to Wishlist
+                    </Button>
 
-                <Button variant="outline" className="border-border hover:border-primary bg-transparent">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add to List
-                </Button>
+                    <Button variant="outline" className="border-border hover:border-primary bg-transparent">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add to List
+                    </Button>
 
-                <Button variant="outline" size="icon" className="border-border hover:border-primary bg-transparent">
-                  <Share className="w-4 h-4" />
-                </Button>
+                    <Button variant="outline" className="border-border hover:border-primary bg-transparent">
+                      <Bookmark className="w-4 h-4 mr-2" />
+                      Mark as Played
+                    </Button>
+
+                    <Button variant="outline" size="icon" className="border-border hover:border-primary bg-transparent">
+                      <Share className="w-4 h-4" />
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button className="bg-primary text-primary-foreground hover:bg-primary/90" asChild>
+                      <Link href="/auth">
+                        <Star className="w-4 h-4 mr-2" />
+                        Sign in to Rate & Review
+                      </Link>
+                    </Button>
+                    
+                    <Button variant="outline" className="border-border hover:border-primary bg-transparent" asChild>
+                      <Link href="/auth">
+                        <Heart className="w-4 h-4 mr-2" />
+                        Sign in to Add to Wishlist
+                      </Link>
+                    </Button>
+
+                    <Button variant="outline" size="icon" className="border-border hover:border-primary bg-transparent">
+                      <Share className="w-4 h-4" />
+                    </Button>
+                  </>
+                )}
               </div>
 
               {/* Description */}
               <p className="text-muted-foreground leading-relaxed">{game.description}</p>
             </div>
           </div>
+
+          {/* Personalized Sidebar for Authenticated Users */}
+          {isAuthenticated && (
+            <div className="space-y-6">
+              {/* My Status */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    My Status
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={avatarUrl || undefined} alt={displayName || username || 'User'} />
+                      <AvatarFallback className="text-xs">
+                        {displayName ? displayName.charAt(0).toUpperCase() : 
+                         username ? username.charAt(0).toUpperCase() : 'U'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <div className="font-medium text-sm">{displayName || username}</div>
+                      <Badge variant="outline" className="text-xs">Want to Play</Badge>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">My Rating</span>
+                      <div className="flex items-center gap-1">
+                        <Star className="w-3 h-3 fill-primary text-primary" />
+                        <span>Not rated</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Hours Played</span>
+                      <span>0h</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Progress</span>
+                      <Badge variant="outline" className="text-xs">Not Started</Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Quick Actions */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Quick Actions</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Button variant="outline" className="w-full justify-start" size="sm">
+                    <Edit className="h-4 w-4 mr-2" />
+                    Update Status
+                  </Button>
+                  <Button variant="outline" className="w-full justify-start" size="sm">
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    Write Review
+                  </Button>
+                  <Button variant="outline" className="w-full justify-start" size="sm">
+                    <Flag className="h-4 w-4 mr-2" />
+                    Report Issue
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Friends Activity */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Friends Activity</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3 text-sm">
+                    <div className="flex items-center gap-2">
+                      <Avatar className="h-6 w-6">
+                        <AvatarFallback className="text-xs">JD</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <span className="font-medium">John</span> rated this 
+                        <div className="inline-flex items-center gap-1 ml-1">
+                          <Star className="w-3 h-3 fill-primary text-primary" />
+                          <span>4.5</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Avatar className="h-6 w-6">
+                        <AvatarFallback className="text-xs">SM</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <span className="font-medium">Sarah</span> added to wishlist
+                      </div>
+                    </div>
+                    <div className="text-center pt-2">
+                      <Button variant="ghost" size="sm" className="text-xs">
+                        View All Activity
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </div>
 
         {/* Game Details and Reviews */}

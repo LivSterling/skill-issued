@@ -1,8 +1,6 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,6 +10,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Upload, User, Mail, Lock, AlertCircle, CheckCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { signUpWithEmail, signInWithEmail, signInWithGoogle, signInWithDiscord, resetPassword, validatePassword, validateUsername, isValidEmail, checkUsernameAvailability } from "@/lib/auth/auth-utils"
+import { useAuth } from "@/hooks/use-auth"
+import { toast } from "sonner"
 
 interface AuthDialogProps {
   open: boolean
@@ -19,6 +19,24 @@ interface AuthDialogProps {
 }
 
 export function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
+  const { user, refreshProfile } = useAuth()
+  
+  // Handle keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && open) {
+        onOpenChange(false)
+      }
+    }
+
+    if (open) {
+      document.addEventListener('keydown', handleKeyDown)
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [open, onOpenChange])
   const [signInData, setSignInData] = useState({
     email: "",
     password: "",
@@ -110,11 +128,14 @@ export function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
           password: ""
         })
         
+        // Refresh auth context
+        await refreshProfile()
+        
         // Close dialog
         onOpenChange(false)
         
-        // Optionally trigger a page refresh to update auth state
-        window.location.reload()
+        // Show success toast
+        toast.success("Welcome back! You've been signed in successfully.")
       }
     } catch (err) {
       setSignInError("An unexpected error occurred. Please try again.")
@@ -188,6 +209,7 @@ export function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
 
       if (user) {
         setSignUpSuccess(true)
+        
         // Reset form
         setSignUpData({
           email: "",
@@ -197,6 +219,9 @@ export function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
           profilePhoto: null,
         })
         setPreviewUrl(null)
+        
+        // Show success toast
+        toast.success("Account created successfully! Please check your email to verify your account.")
         
         // Close dialog after a short delay to show success message
         setTimeout(() => {
@@ -249,15 +274,20 @@ export function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
       setSignInError(null)
       setSignUpError(null)
       
+      // Show loading toast
+      toast.loading("Redirecting to Google...")
+      
       const { error } = await signInWithGoogle()
       
       if (error) {
+        toast.dismiss()
         setSignInError("Failed to sign in with Google. Please try again.")
         return
       }
       
       // OAuth will redirect, so we don't need to handle success here
     } catch (err) {
+      toast.dismiss()
       setSignInError("An unexpected error occurred with Google sign in.")
     }
   }
@@ -268,15 +298,20 @@ export function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
       setSignInError(null)
       setSignUpError(null)
       
+      // Show loading toast
+      toast.loading("Redirecting to Discord...")
+      
       const { error } = await signInWithDiscord()
       
       if (error) {
+        toast.dismiss()
         setSignInError("Failed to sign in with Discord. Please try again.")
         return
       }
       
       // OAuth will redirect, so we don't need to handle success here
     } catch (err) {
+      toast.dismiss()
       setSignInError("An unexpected error occurred with Discord sign in.")
     }
   }
@@ -310,6 +345,9 @@ export function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
 
       setResetPasswordSuccess(true)
       setResetEmail("")
+      
+      // Show success toast
+      toast.success("Password reset email sent! Check your inbox for instructions.")
       
       // Close reset form after showing success message
       setTimeout(() => {
