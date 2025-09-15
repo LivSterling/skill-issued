@@ -40,9 +40,9 @@ export function useTrendingGames(): UseTrendingGamesReturn {
       if (trendingData.error) throw new Error(trendingData.error)
       if (popularData.error) throw new Error(popularData.error)
 
-      setFeaturedGames(featuredData.results || [])
-      setTrendingGames(trendingData.results || [])
-      setPopularGames(popularData.results || [])
+      setFeaturedGames(featuredData.data || [])
+      setTrendingGames(trendingData.data || [])
+      setPopularGames(popularData.data || [])
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch trending games'

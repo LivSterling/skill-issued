@@ -31,9 +31,9 @@ export function transformGameForDisplay(game: Game): GameDisplayData {
     title: game.name,
     year: game.released ? new Date(game.released).getFullYear() : null,
     genres: game.genres?.map(g => g.name) || [],
-    platforms: game.platforms?.map(p => p.platform.name) || [],
+    platforms: game.platforms?.map(p => p.platform?.name || p.name) || [],
     rating: game.rating || 0,
-    image: game.background_image || "/placeholder.svg",
+    image: game.image || game.background_image || "/placeholder.svg",
     developers: game.developers?.map(d => d.name) || [],
     publishers: game.publishers?.map(p => p.name) || [],
     playtime: game.playtime || 0,
@@ -165,7 +165,7 @@ export function validateGameStructure(game: any): game is Game {
  * Get game image URL with fallback
  */
 export function getGameImageUrl(game: Game, fallback: string = '/placeholder.svg'): string {
-  return game.background_image || fallback
+  return game.image || game.background_image || fallback
 }
 
 /**

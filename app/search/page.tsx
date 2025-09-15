@@ -331,7 +331,7 @@ export default function SearchPage() {
                         <div className="flex gap-4 p-4">
                           <div className="w-16 h-20 bg-muted rounded overflow-hidden flex-shrink-0">
                             <img
-                              src={game.image || "/placeholder.svg"}
+                              src={game.image || game.background_image || "/placeholder.svg"}
                               alt={game.title}
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                             />
@@ -546,10 +546,10 @@ export default function SearchPage() {
                       >
                         <div className="flex gap-4">
                           <div className="flex gap-1">
-                            {list.games.slice(0, 3).map((gameImage: string, gameIndex: number) => (
+                            {list.games.slice(0, 3).map((game: any, gameIndex: number) => (
                               <div key={gameIndex} className="w-12 h-16 bg-muted rounded overflow-hidden">
                                 <img
-                                  src={gameImage || "/placeholder.svg"}
+                                  src={list.image || list.background_image || "/placeholder.svg"}
                                   alt=""
                                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                 />

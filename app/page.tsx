@@ -364,7 +364,26 @@ export default function HomePage() {
                       alt={game.name}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
+                    
+                    
                   </div>
+                  <h3 className="font-semibold text-sm mb-2 line-clamp-2">{game.name}</h3>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                      <div className="flex items-center gap-1">
+                        <Star className="w-3 h-3 fill-primary text-primary" />
+                        <span>{formatGameRating(game.rating)}</span>
+                      </div>
+                      <span>•</span>
+                      <span>{formatRatingsCount(game.ratings_count)} ratings</span>
+                      {game.metacritic && (
+                        <>
+                          <span>•</span>
+                          <span>Meta {game.metacritic}</span>
+                        </>
+                      )}
+                    </div>
+                  
+                  
                 </div>
               </Link>
             ))

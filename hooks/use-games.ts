@@ -41,11 +41,11 @@ export function useGames(initialParams: UseGamesParams = {}): UseGamesReturn {
 
       // Handle pagination - if it's a new search or page 1, replace games
       if (!params.page || params.page === 1) {
-        setGames(data.results || [])
+        setGames(data.data || [])
         setCurrentPage(1)
       } else {
         // Append for pagination
-        setGames(prev => [...prev, ...(data.results || [])])
+        setGames(prev => [...prev, ...(data.data || [])])
       }
       
       setTotalCount(data.count || 0)
