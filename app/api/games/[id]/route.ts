@@ -1,19 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { RAWGService } from '@/lib/services/rawg-service'
 import { createClient } from '@/lib/supabase/server'
+import { validateGameStructure } from '@/lib/validations/game-schemas'
 
+/**
+ * GET /api/games/[id] - Fetch individual game data with intelligent caching
+ */
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
     const { id } = params
-    const gameId = parseInt(id)
-
-    if (isNaN(gameId)) {
+    
+    // Validate game ID parameter
+    if (!id || id.trim() === '') {
       return NextResponse.json(
-        { error: 'Invalid game ID' },
+        { error: 'Game ID is required' },
         { status: 400 }
+      )
+    }
+    
+    const gameId = parseInt(id)
+    if (isNaN(gameId) || gameId <= 0) {
+      return NextResponse.json(
+        { error: 'Invalid game ID. Must be a positive integer.' },
+        { status: 400 }
+      )
+    }
+
+    // Check for required API key
+    const apiKey = process.env.RAWG_API_KEY
+    if (!apiKey) {
+      console.error('RAWG_API_KEY environment variable is not set')
+      return NextResponse.json(
+        { error: 'Service configuration error' },
+        { status: 503 }
       )
     }
 
@@ -26,85 +48,193 @@ export async function GET(
       .eq('id', gameId)
       .single()
 
-    // If game exists in database and is recent (less than 24 hours old), return it
-    if (existingGame && !dbError) {
-      const gameAge = Date.now() - new Date(existingGame.updated_at).getTime()
-      const twentyFourHours = 24 * 60 * 60 * 1000
-
-      if (gameAge < twentyFourHours) {
-        return NextResponse.json(existingGame)
+    // Check if cached data is fresh (less than 24 hours old)
+    let isCacheFresh = false
+    if (existingGame && !dbError && (existingGame as any).updated_at) {
+      try {
+        const gameAge = Date.now() - new Date((existingGame as any).updated_at).getTime()
+        const twentyFourHours = 24 * 60 * 60 * 1000
+        isCacheFresh = gameAge < twentyFourHours
+      } catch (dateError) {
+        console.warn('Error parsing game updated_at timestamp:', dateError)
       }
     }
 
+    // Return fresh cached data
+    if (existingGame && !dbError && isCacheFresh) {
+      return NextResponse.json({
+        ...(existingGame as any),
+        meta: {
+          source: 'cache',
+          cached_at: (existingGame as any).updated_at,
+          fresh: true
+        }
+      })
+    }
+
     // If game doesn't exist or is stale, fetch from RAWG API
-    const rawg = new RAWGService(process.env.RAWG_API_KEY!)
+    const rawg = new RAWGService(apiKey)
+    let rawgGame
     
     try {
-      const rawgGame = await rawg.getGame(gameId)
+      rawgGame = await rawg.getGame(gameId)
+    } catch (rawgError) {
+      console.error('RAWG API request failed:', rawgError)
       
-      if (!rawgGame || rawgGame.detail === "Not found.") {
-        return NextResponse.json(
-          { error: 'Game not found' },
-          { status: 404 }
-        )
+      // If RAWG fails but we have stale data, return it with warning
+      if (existingGame && !dbError) {
+        return NextResponse.json({
+          ...(existingGame as any),
+          meta: {
+            source: 'cache',
+            cached_at: (existingGame as any).updated_at,
+            fresh: false,
+            warning: 'Data may be outdated due to API unavailability'
+          }
+        })
       }
-
-      // Transform and store/update the game in our database
-      const gameData = {
-        id: rawgGame.id,
-        slug: rawgGame.slug,
-        name: rawgGame.name,
-        description: rawgGame.description,
-        released: rawgGame.released,
-        background_image: rawgGame.background_image,
-        rating: rawgGame.rating,
-        rating_top: rawgGame.rating_top,
-        ratings_count: rawgGame.ratings_count,
-        metacritic: rawgGame.metacritic,
-        playtime: rawgGame.playtime,
-        genres: rawgGame.genres,
-        platforms: rawgGame.platforms,
-        developers: rawgGame.developers,
-        publishers: rawgGame.publishers,
-        esrb_rating: rawgGame.esrb_rating,
-        tags: rawgGame.tags,
-        updated_at: new Date().toISOString()
+      
+      // No fallback data available
+      return NextResponse.json(
+        { 
+          error: 'Failed to fetch game data from RAWG API',
+          details: 'External service unavailable and no cached data found'
+        },
+        { status: 502 }
+      )
+    }
+    
+    // Validate RAWG response
+    if (!rawgGame) {
+      // If RAWG returns null but we have cached data, use it
+      if (existingGame && !dbError) {
+        return NextResponse.json({
+          ...(existingGame as any),
+          meta: {
+            source: 'cache',
+            cached_at: (existingGame as any).updated_at,
+            fresh: false,
+            warning: 'API returned no data, using cached version'
+          }
+        })
       }
+      
+      return NextResponse.json(
+        { error: 'Game not found' },
+        { status: 404 }
+      )
+    }
+    
+    // Check for RAWG API error responses
+    if (rawgGame.detail === "Not found." || rawgGame.error) {
+      return NextResponse.json(
+        { error: 'Game not found' },
+        { status: 404 }
+      )
+    }
 
-      // Upsert the game data
+    // Validate game structure
+    if (!validateGameStructure(rawgGame)) {
+      console.warn('Invalid game structure received from RAWG:', gameId)
+      
+      // Use cached data if available
+      if (existingGame && !dbError) {
+        return NextResponse.json({
+          ...(existingGame as any),
+          meta: {
+            source: 'cache',
+            cached_at: (existingGame as any).updated_at,
+            fresh: false,
+            warning: 'Invalid data structure from API, using cached version'
+          }
+        })
+      }
+      
+      return NextResponse.json(
+        { error: 'Invalid game data received from API' },
+        { status: 502 }
+      )
+    }
+
+    // Transform and sanitize game data
+    const gameData = {
+      id: rawgGame.id,
+      slug: rawgGame.slug,
+      name: rawgGame.name,
+      description: rawgGame.description || null,
+      released: rawgGame.released || null,
+      background_image: rawgGame.background_image || null,
+      rating: rawgGame.rating || null,
+      rating_top: rawgGame.rating_top || null,
+      ratings_count: rawgGame.ratings_count || null,
+      metacritic: rawgGame.metacritic || null,
+      playtime: rawgGame.playtime || null,
+      genres: rawgGame.genres || null,
+      platforms: rawgGame.platforms || null,
+      developers: rawgGame.developers || null,
+      publishers: rawgGame.publishers || null,
+      esrb_rating: rawgGame.esrb_rating || null,
+      tags: rawgGame.tags || null,
+      updated_at: new Date().toISOString()
+    }
+
+    // Upsert the game data with error handling
+    try {
       const { data: upsertedGame, error: upsertError } = await supabase
         .from('games')
-        .upsert(gameData, { onConflict: 'id' })
+        .upsert(gameData as any, { 
+          onConflict: 'id',
+          ignoreDuplicates: false 
+        })
         .select()
         .single()
 
       if (upsertError) {
         console.error('Error upserting game:', upsertError)
         // Return RAWG data even if database upsert fails
-        return NextResponse.json(gameData)
+        return NextResponse.json({
+          ...gameData,
+          meta: {
+            source: 'api',
+            fetched_at: gameData.updated_at,
+            cached: false,
+            warning: 'Failed to cache data in database'
+          }
+        })
       }
 
-      return NextResponse.json(upsertedGame)
+      // Successfully cached and returning fresh data
+      return NextResponse.json({
+        ...(upsertedGame as any),
+        meta: {
+          source: 'api',
+          fetched_at: (upsertedGame as any).updated_at,
+          cached: true
+        }
+      })
 
-    } catch (rawgError) {
-      console.error('RAWG API error:', rawgError)
+    } catch (dbError) {
+      console.error('Database error during game upsert:', dbError)
       
-      // If RAWG fails but we have stale data, return it
-      if (existingGame) {
-        return NextResponse.json(existingGame)
-      }
-      
-      // If no fallback data, return error
-      return NextResponse.json(
-        { error: 'Failed to fetch game data from RAWG API' },
-        { status: 502 }
-      )
+      // Return RAWG data even if database operations fail
+      return NextResponse.json({
+        ...gameData,
+        meta: {
+          source: 'api',
+          fetched_at: gameData.updated_at,
+          cached: false,
+          warning: 'Database unavailable, data not cached'
+        }
+      })
     }
 
   } catch (error) {
     console.error('Game detail API error:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { 
+        error: 'Internal server error',
+        message: process.env.NODE_ENV === 'development' ? (error as Error)?.message : undefined
+      },
       { status: 500 }
     )
   }
