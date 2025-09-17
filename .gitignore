@@ -25,3 +25,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+#MCPServer
+.cursor/mcp.json
+.cursor/mcp.json.bak
+.cursor/mcp.json.bak.2
+.cursor/mcp.json.bak.3
+.cursor/mcp.json.bak.4
+.cursor/mcp.json.bak.5
+.cursor/mcp.json.bak.6
+.cursor/mcp.json.bak.7
+.cursor/mcp.json.bak.8
+.cursor/mcp.json.bak.9
